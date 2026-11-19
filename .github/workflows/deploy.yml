@@ -1,0 +1,58 @@
+name: Deploy
+# Builds the site with the published listings inside it and puts it on GitHub Pages.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+  # The Ingest workflow, after it publishes new listings.
+  workflow_call:
+concurrency:
+  group: pages
+  cancel-in-progress: false
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+jobs:
+  deploy:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.pages.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v7
+      - name: Fetch the listings the site carries
+        id: listings
+        run: |
+          bash scripts/listings.sh download
+          # Until an ingest publishes listings there is nothing to show.
+          if ! ls data/*.sqlite >/dev/null 2>&1; then exit 0; fi
+          echo "published=true" >> "$GITHUB_OUTPUT"
+        env:
+          GH_TOKEN: ${{ github.token }}
+      - uses: actions/setup-node@v7
+        if: steps.listings.outputs.published == 'true'
+        with:
+          node-version-file: site/.nvmrc
+          cache: npm
+          cache-dependency-path: site/package-lock.json
+      - run: npm ci
+        if: steps.listings.outputs.published == 'true'
+        working-directory: site
+      # Every chain's file, exported as the compressed JSON document the site downloads.
+      - run: npm run listings
+        if: steps.listings.outputs.published == 'true'
+        working-directory: site
+      - run: npm run build
+        if: steps.listings.outputs.published == 'true'
+        working-directory: site
+      - uses: actions/configure-pages@v6
+        if: steps.listings.outputs.published == 'true'
+      - uses: actions/upload-pages-artifact@v5
+        if: steps.listings.outputs.published == 'true'
+        with:
+          path: site/dist
+      - uses: actions/deploy-pages@v5
+        if: steps.listings.outputs.published == 'true'
+        id: pages

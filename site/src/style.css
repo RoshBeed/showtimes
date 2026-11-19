@@ -1,0 +1,183 @@
+:root {
+  --bg: #0c1014;
+  --panel: #151b22;
+  --text: #d6dde6;
+  --dim: #7d8997;
+  --accent: #f2a33a;
+  --select: #1b6fc2;
+  --line: #26303b;
+  font-family: ui-monospace, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace;
+  font-size: 14px;
+  line-height: 1.45;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--text); }
+a { color: inherit; }
+.loading, .error { padding: 48px 16px; color: var(--dim); }
+.error { color: #ff8a80; }
+.dim { color: var(--dim); }
+.stale { color: #ff8a80; }
+button, select, input[type='search'] { background: var(--panel); border: 1px solid var(--line); color: var(--text); font: inherit; border-radius: 3px; }
+button { padding: 3px 8px; cursor: pointer; }
+button:disabled { color: var(--dim); cursor: default; }
+.check { cursor: pointer; }
+.check input { accent-color: var(--accent); margin: 0 2px 0 0; vertical-align: -2px; }
+
+/* The window: the header, the columns, the footer, whatever height each needs. */
+#app { display: flex; flex-direction: column; height: 100vh; height: 100dvh; padding: 0 16px; }
+header { display: flex; gap: 14px; align-items: center; padding: 10px 0; border-bottom: 1px solid var(--line); }
+header h1 { font-size: 1rem; margin: 0 auto 0 0; font-weight: 600; }
+header h1 a { text-decoration: none; }
+header h1 span { color: var(--dim); font-weight: 400; }
+header .open-panel { color: var(--accent); border-color: var(--accent); }
+footer { margin: 0 -16px; background: var(--panel); border-top: 1px solid var(--line); padding: 6px 16px; color: var(--dim); display: flex; gap: 16px; flex-wrap: wrap; justify-content: space-between; }
+footer kbd { color: var(--accent); font: inherit; }
+
+/* Columns side by side; each gives way so that they fit, and the strip scrolls when they cannot. */
+.columns { flex: 1; min-height: 0; display: flex; overflow-x: auto; }
+.column { flex: 1 1 160px; min-width: 150px; overflow-y: auto; padding: 0 10px; border-right: 1px solid var(--line); scroll-padding-top: 66px; }
+.column.film, .column.screen, .column.person { flex-basis: 260px; min-width: 200px; }
+.column.showtimes, .column.details { flex: 2 1 340px; min-width: 300px; }
+.column.showtimes { flex-grow: 3; }
+/* One heading line: the title, then the search, the order and the count. */
+.bar { position: sticky; top: 0; z-index: 1; display: flex; align-items: center; gap: 6px; height: 40px; margin: 0 -10px; padding: 0 10px; background: var(--bg); border-bottom: 1px solid var(--line); }
+.bar h2 { flex: 1 1 auto; min-width: 0; margin: 0; font-size: 1rem; font-weight: 600; color: var(--dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.column.focused .bar h2 { color: var(--accent); }
+.bar input { width: 70px; padding: 2px 5px; }
+.bar input:focus { width: 130px; outline: 1px solid var(--select); }
+/* A column's search shows while it is in use or has something in it; ⌕ opens it. */
+.bar input:placeholder-shown:not(:focus) { width: 0; padding: 0; border: 0; opacity: 0; } /* still able to take focus */
+.bar input:not(:placeholder-shown) + .find, .bar input:focus + .find { display: none; }
+.bar .find { border: 0; background: none; color: var(--dim); padding: 2px 4px; }
+.bar select { max-width: 76px; padding: 2px 3px; }
+.bar button { padding: 2px 6px; }
+.bar .count { flex: none; }
+
+/* Choices and showtimes: one line each, the name first; hovering shows all of it. */
+.facet, .cards { list-style: none; margin: 0; padding: 0; }
+.facet li, .cards li { display: flex; gap: 10px; align-items: baseline; padding: 3px 6px; cursor: pointer; white-space: nowrap; }
+.facet strong, .cards strong { flex: 1 1 0; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: pre; }
+.facet strong { font-weight: 400; }
+.cards strong { font-weight: 600; }
+.facet .dim, .cards .dim { flex: 0 1 auto; max-width: 45%; overflow: hidden; text-overflow: ellipsis; }
+.facet .count { min-width: 3ch; text-align: right; }
+.facet li.pinned strong { color: var(--accent); }
+.facet li.note, .cards li.day { padding: 10px 6px 3px; color: var(--accent); cursor: default; }
+.cards li.sold strong { text-decoration: line-through; }
+/* Rows are grids that share their list's columns, so each part lines up under its heading. */
+.facet { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; column-gap: 10px; }
+.cards { display: grid; column-gap: 10px; }
+.facet li, .cards li { display: grid; grid-column: 1 / -1; grid-template-columns: subgrid; gap: 0 10px; }
+.facet li.note, .cards li.day { display: block; overflow: hidden; text-overflow: ellipsis; contain: inline-size; } /* its text does not widen the columns */
+.cards li > * { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: pre; }
+.cards .dim { max-width: none; }
+.cards .time { font-variant-numeric: tabular-nums; }
+/* The least each part narrows to before the showtimes column is too full; the film comes first. */
+.cards .film { min-width: 12ch; }
+.cards .cinema { min-width: 6ch; }
+.cards .picture, .cards .language, .cards .access { min-width: 4ch; }
+.cards .screen { min-width: 3ch; }
+.cards.without-language .language, .cards.without-access .access, .cards.without-cert .cert, .cards.without-ends .ends, .cards.without-picture .picture, .cards.without-screen .screen, .cards.without-cinema .cinema { display: none; }
+.facet .dim { max-width: none; }
+li.heads { position: sticky; top: 40px; z-index: 1; padding-top: 4px; padding-bottom: 4px; background: var(--bg); color: var(--dim); font-size: .75rem; cursor: default; border-bottom: 1px solid var(--line); }
+.facet li.heads span:not(:first-child) { text-align: right; }
+li.heads button { padding: 0; border: 0; background: none; color: inherit; font: inherit; cursor: pointer; text-align: left; }
+li.heads button:hover, li.heads button.on { color: var(--accent); }
+.facet li.selected, .cards li.selected { background: var(--panel); }
+.column.focused li.selected { background: var(--select); color: #fff; }
+.column.focused li.selected .dim, .column.focused li.selected strong { color: #fff; }
+
+/* The details of the highlighted showtime, and of its film. */
+.intro { padding: 12px 0 4px; }
+.intro p { margin: 0 0 8px; }
+.intro h3 { margin: 8px 0; font-size: 1rem; color: var(--accent); }
+.intro.film { border-top: 1px solid var(--line); margin-top: 8px; }
+.intro dl { display: grid; grid-template-columns: max-content 1fr; gap: 2px 12px; margin: 8px 0; }
+.intro dt { color: var(--accent); }
+.intro dd { margin: 0; }
+.intro dd a { color: var(--accent); }
+.actions { display: flex; gap: 10px; flex-wrap: wrap; margin: 12px 0 4px; }
+.actions a, .actions button { background: var(--panel); border: 1px solid var(--line); color: var(--text); padding: 7px 12px; text-decoration: none; }
+.actions a:first-child { border-color: var(--accent); color: var(--accent); }
+.bills { margin-bottom: 8px; }
+.trailer { aspect-ratio: 16 / 9; max-width: 560px; margin: 10px 0; background: #000; border: 1px solid var(--line); border-radius: 3px; overflow: hidden; }
+.trailer button { position: relative; display: block; width: 100%; height: 100%; padding: 0; border: 0; background: none; }
+.trailer img, .trailer iframe { display: block; width: 100%; height: 100%; border: 0; object-fit: cover; }
+.trailer span { position: absolute; left: 10px; bottom: 10px; padding: 4px 8px; border-radius: 3px; background: rgba(0, 0, 0, 0.75); color: #fff; }
+
+/* Settings: a drawer at the right, so the finder shows each change behind it. */
+.panel { margin: 0 0 0 auto; width: min(460px, 100vw); max-width: none; height: 100dvh; max-height: 100dvh; background: var(--bg); color: var(--text); border: 0; border-left: 1px solid var(--line); padding: 0 20px 24px; }
+.panel::backdrop { background: rgba(0, 0, 0, 0.35); }
+.panel-head { position: sticky; top: 0; z-index: 1; display: flex; justify-content: space-between; align-items: center; background: var(--bg); padding: 14px 0 10px; border-bottom: 1px solid var(--line); }
+.panel-head button { border-color: var(--accent); color: var(--accent); padding: 5px 14px; }
+.panel h2 { margin: 0; font-size: 1.1rem; }
+.panel section { padding: 6px 0 14px; border-bottom: 1px solid var(--line); }
+.panel h3 { margin: 12px 0 8px; font-size: 1rem; color: var(--accent); }
+.panel p { margin: 8px 0; }
+.panel input[type='search'] { width: 100%; padding: 6px 8px; margin: 4px 0 8px; }
+/* Where to look: three choices, one picked. */
+.options { display: grid; gap: 6px; }
+.option { display: grid; grid-template-columns: auto 1fr; column-gap: 8px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 4px; cursor: pointer; }
+.option input { grid-row: span 2; accent-color: var(--accent); margin: 3px 0 0; }
+.option.on { border-color: var(--accent); }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.chip { border-radius: 12px; padding: 3px 10px; }
+.choices { list-style: none; margin: 0; padding: 0; }
+.choices li { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 3px 0; }
+.choices li > .check, .choices .name { flex: 1 1 auto; min-width: 0; }
+.choices .name { display: flex; flex-direction: column; }
+.choices.shown li { flex-wrap: nowrap; padding: 5px 0; border-bottom: 1px solid var(--line); }
+.choices.shown .place { width: 2ch; text-align: right; }
+.choices.cinemas { max-height: 45vh; overflow-y: auto; }
+.choices ul { flex-basis: 100%; list-style: none; margin: 0; padding: 0 0 4px 24px; display: flex; flex-wrap: wrap; gap: 2px 16px; }
+.choices ul li { padding: 0; }
+
+/* The steps name each column, for a phone, where one column shows at a time. */
+.steps { display: none; }
+@media (max-width: 640px) {
+  :root { font-size: 15px; }
+  #app { padding: 0 10px; }
+  /* One line at the top, and none at the foot: the screen is for the listings. */
+  header { gap: 10px; padding: 8px 0; }
+  header h1 span { display: none; }
+  footer { display: none; }
+  .steps { display: flex; gap: 6px; overflow-x: auto; padding: 8px 0; border-bottom: 1px solid var(--line); }
+  .steps button { flex: none; padding: 6px 10px; }
+  .steps button.here { border-color: var(--accent); color: var(--accent); }
+  .columns { overflow: hidden; }
+  /* A column scrolls up and down only; the steps above move between columns. */
+  .column { display: none; border-right: 0; padding: 0 2px; overflow-x: hidden; touch-action: pan-y; }
+  .bar { margin: 0 -2px; padding: 0 8px; }
+  .column.focused { display: block; flex: 1 1 auto; min-width: 0; }
+  .facet li, .cards li { padding: 10px 6px; }
+  li.heads { padding: 4px 6px; }
+  .cards, .cards li { column-gap: 8px; }
+  .cards .film { min-width: 10ch; }
+  .bar input { width: 120px; }
+  .intro dl { grid-template-columns: 1fr; gap: 0; }
+  .intro dd { margin-bottom: 6px; }
+}
+
+/* The command line, as vim's: messages on the left, the keys typed so far on the right, and : / ? to type into. */
+.cmdline { position: fixed; left: 0; right: 0; bottom: 0; z-index: 10; display: none; align-items: center; gap: 0; height: 30px; padding: 0 16px; background: var(--bg); border-top: 1px solid var(--line); }
+.cmdline.on { display: flex; }
+.cmdline input { display: none; flex: 1 1 auto; min-width: 0; padding: 0; border: 0; outline: 0; background: none; color: var(--text); font: inherit; }
+.cmdline.typing input { display: block; }
+.cmdline:not(.typing) .prompt { display: none; }
+.cmdline.typing .message { display: none; }
+.cmdline .message { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: pre; }
+.cmdline .message.error { color: #ff6b6b; }
+.cmdline .showcmd { flex: none; margin-left: 16px; color: var(--dim); }
+/* Tab's choices above the command line, as vim's wildmenu. */
+.wildmenu { position: absolute; left: 0; right: 0; bottom: 100%; display: none; gap: 2px; padding: 3px 16px; overflow: hidden; white-space: nowrap; background: var(--panel); border-top: 1px solid var(--line); }
+.cmdline.wild .wildmenu { display: flex; }
+.wildmenu span { padding: 0 6px; }
+.wildmenu span.on { background: var(--accent); color: var(--bg); }
+/* The drawer's line in hand, as vim's cursorline. */
+.panel .cursorline { background: var(--panel); outline: 1px solid var(--line); }
+/* Every key and command, which :help lists. */
+.keylist h3 { margin-top: 18px; }
+.keylist dl { display: grid; grid-template-columns: fit-content(45%) 1fr; gap: 6px 14px; margin: 12px 0; }
+.keylist dt { white-space: normal; }
+.keylist dd { margin: 0; }
+.keylist kbd { color: var(--accent); font: inherit; }

@@ -83,3 +83,11 @@ jobs:
         # days; enabling the workflow again restarts that clock.
         if: always()
         run: gh workflow enable ingest.yml
+  deploy:
+    needs: ingest
+    if: needs.ingest.outputs.changed == 'true'
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    uses: ./.github/workflows/deploy.yml
