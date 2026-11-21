@@ -52,12 +52,36 @@ test('published external and unavailable booking links survive export; older fil
   expect(q.booking(older, { cinemaId: 'olympic-barnes', id: 's0' })).toBe('https://web1.empire.mycloudcinema.com/#/book/s0');
 });
 
-test('screening labels in a provider title do not create a duplicate film', () => {
+test('a title cleaned of its screening label is the same film, the label a tag on its showings', () => {
   const sqlite = chain('hull', ['a', 'A Film - Subtitled Screening', null, ''], 1);
   sqlite.exec("INSERT INTO films SELECT 'b', 'A Film', runtime, certificate, release_date, genres, people, distributor, synopsis, trailer_url FROM films WHERE id = 'a'");
   sqlite.exec("INSERT INTO screenings SELECT cinema_id, 'other', 'b', business_date, starts_at, time, film_starts_at, film_ends_at, screen, screen_id, experiences, seating, sold_out FROM screenings LIMIT 1");
-  const data = exportListings([{ chain: reel, sqlite }]);
+  const data = exportListings([{ chain: reel, sqlite }], undefined, {
+    'A Film - Subtitled Screening': { title: 'A Film', year: null, tags: [{ label: 'English subtitles', kind: 'Language' }] },
+  });
   expect(data.films.map((film) => film.title)).toEqual(['A Film']);
   expect(data.rows).toHaveLength(2);
+  expect(data.tags['English subtitles']).toBe('Language');
   expect(q.booking(q.open(data), { cinemaId: 'reel-hull', id: '123/a-film' })).toBe('https://hull.reelcinemas.co.uk/hull/booking/123/a-film');
+});
+
+test('titles Claude cleaned to one name are one film, tagged with what they said; remakes stay apart', () => {
+  const titles = {
+    '(4DX) The Polar Express': { title: 'The Polar Express', year: null, tags: [{ label: '4DX', kind: 'Picture' as const }] },
+    'The Polar Express (2004)': { title: 'The Polar Express', year: 2004, tags: [] },
+    'Black Christmas (1974)': { title: 'Black Christmas', year: 1974, tags: [] },
+    'Black Christmas (2006)': { title: 'Black Christmas', year: 2006, tags: [] },
+  };
+  const data = exportListings([
+    { chain: odeon, sqlite: chain('155', ['HO1', '(4DX) The Polar Express', null, ''], 2) },
+    { chain: everyman, sqlite: chain('X1', ['6272', 'The Polar Express (2004)', null, ''], 1) },
+    { chain: reel, sqlite: chain('hull', ['b', 'Black Christmas (1974)', null, ''], 1) },
+    { chain: olympic, sqlite: chain('barnes', ['c', 'Black Christmas (2006)', null, ''], 1) },
+    { chain: odeon, sqlite: chain('156', ['HO2', 'A Title Nobody Cleaned', null, ''], 1) },
+  ], undefined, titles);
+  expect(data.films.map((film) => film.title).sort()).toEqual(['A Title Nobody Cleaned', 'Black Christmas (1974)', 'Black Christmas (2006)', 'The Polar Express']);
+  const polar = data.rows.filter((row) => data.values[row[2]] === 'odeon-HO1');
+  expect(polar).toHaveLength(3); // the 4DX and the plain listing's showings, as one film
+  expect(polar.map((row) => data.values[row[10]])).toContainEqual(['4DX']);
+  expect(data.tags['4DX']).toBe('Picture');
 });

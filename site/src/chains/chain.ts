@@ -12,8 +12,6 @@ export interface Chain {
   booking: string;
   /** For groups whose cinemas use different ticketing hosts; keys are their raw cinema IDs. */
   bookingByCinema?: Record<string, string>;
-  /** The film's name without a chain's screening labels; the stored title stays raw. */
-  filmTitle?(title: string): string;
   /** A cinema's name in full, from its stored name: `London West End` → `ODEON London West End`. */
   cinemaName(name: string): string;
   /** A cinema's name without what every one of the chain's shares: `London West End` → `West End`. */

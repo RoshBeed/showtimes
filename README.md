@@ -144,6 +144,7 @@ London only) and keeps them in memory, so every key press is answered at once.
 | --- | --- | --- |
 | Ingest | `ingest/` (Python) | A core (the shared schema, the runs, IMDb and Metacritic ratings) and a package for each chain in `chains/` that fetches it into its own SQLite file |
 | Export | `site/src/export.ts`, `site/src/chains/` | At build time, reads every chain's file through that chain's module, which names its tags, towns, seats and booking link in the shared vocabulary, and writes the JSON the page downloads |
+| Titles | `ingest/src/showtimes_ingest/titles.py`, `site/src/titles.ts` | Claude reads every title the chains list and cleans each new one: the film's own name without what chains add (`(4DX)`, `(1995)`, `(Tamil)`, `Relaxed:`, `LDNDOCS 2026:`, `+ Q&A`), which becomes tags on those showings, so every chain's listing of a film is one film. Decisions are kept in `titles.json` on the `data` release, so each title is asked about once; each Deploy run's summary lists them, and `site/src/titles.overrides.json` corrects any. There is no API key: the Deploy job signs in to Claude with its GitHub identity through Workload Identity Federation (the IDs are in `deploy.yml`) |
 | Site | `site/src/` (TypeScript, Vite) | The interface; it knows no chain's own strings |
 | Listings | the `data` release of this repository | Each chain's `<chain>.sqlite.gz`; also its ingest's only memory between runs |
 | Workflows | `.github/workflows/` | `Ingest` (each chain's schedule), `Deploy` (GitHub Pages), `CI` |

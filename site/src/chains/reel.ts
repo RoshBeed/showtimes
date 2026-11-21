@@ -21,7 +21,6 @@ export const reel: Chain = {
     morecambe: 'https://morecambe.reelcinemas.co.uk/morecambe/booking/{id}',
     quinton: 'https://quinton.reelcinemas.co.uk/quinton/booking/{id}',
   },
-  filmTitle: (title) => title.replace(/ - Subtitled Screening$/i, ''),
   cinemaName: (name) => `Reel ${name}`,
   short: (name) => name,
   town: (cinema) => inGreaterLondon(cinema.postcode ?? '', cinema.city) ? 'Greater London' : cinema.city.replace(/ - .*/, '') || cinema.name,

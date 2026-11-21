@@ -14,12 +14,16 @@ permissions:
   pages: write
   id-token: write
 jobs:
-  deploy:
+  # Built and deployed in two jobs, as GitHub's own Pages workflow does: a deploy in the same job
+  # as its upload sometimes looked for the artifact before GitHub listed it ("Found 0 artifact(s)").
+  build:
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
-    environment:
-      name: github-pages
-      url: ${{ steps.pages.outputs.page_url }}
+    permissions:
+      contents: write # titles.json on the data release
+      id-token: write # Claude, through Workload Identity Federation
+    outputs:
+      published: ${{ steps.listings.outputs.published }}
     steps:
       - uses: actions/checkout@v7
       - name: Fetch the listings the site carries
@@ -31,6 +35,47 @@ jobs:
           echo "published=true" >> "$GITHUB_OUTPUT"
         env:
           GH_TOKEN: ${{ github.token }}
+      # Claude cleans the titles it has not seen before (ingest/src/showtimes_ingest/titles.py);
+      # Deploys run one at a time, so only one run writes titles.json.
+      # No API key: the job's GitHub identity token is exchanged for a short-lived Anthropic one
+      # under the account's federation rule. The SDK reads the token file at each exchange, so a
+      # fresh token is written every four minutes for as long as Claude runs.
+      - name: Clean new film titles with Claude
+        if: steps.listings.outputs.published == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ANTHROPIC_FEDERATION_RULE_ID: fdrl_019xq5XaETGXpQpadSWiWu5C
+          ANTHROPIC_ORGANIZATION_ID: 16ff528b-8d56-4918-b726-c5ef154fb64e
+          ANTHROPIC_SERVICE_ACCOUNT_ID: svac_013U29rWXbxzfDi7WLqJPDPw
+          ANTHROPIC_WORKSPACE_ID: wrkspc_01FdaqMPTvrKhtpGjXhoC28v
+        run: |
+          docker build --target api -f ingest/Dockerfile -t showtimes-ingest .
+          oidc="$RUNNER_TEMP/oidc"
+          mkdir -p "$oidc"
+          identity() {
+            curl -sSf -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" \
+              "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=https://api.anthropic.com" | jq -r .value > "$oidc/next"
+            mv "$oidc/next" "$oidc/jwt"
+          }
+          identity
+          # What the federation rule must match: the token's claims, never the token.
+          cut -d. -f2 "$oidc/jwt" | tr '_-' '/+' | base64 -d 2>/dev/null \
+            | jq -c '{iss, aud, sub, repository, repository_owner, ref, workflow, job_workflow_ref, environment, event_name}' || true
+          (while sleep 240; do identity; done) &
+          refresher=$!
+          before=$(sha256sum data/titles.json 2>/dev/null || true)
+          status=0
+          docker run --rm -v "$PWD/data:/data" -v "$oidc:/oidc:ro" -e ANTHROPIC_IDENTITY_TOKEN_FILE=/oidc/jwt \
+            -e ANTHROPIC_FEDERATION_RULE_ID -e ANTHROPIC_ORGANIZATION_ID -e ANTHROPIC_SERVICE_ACCOUNT_ID -e ANTHROPIC_WORKSPACE_ID \
+            --entrypoint uv showtimes-ingest run --no-sync showtimes-titles /data > "$RUNNER_TEMP/titles" || status=$?
+          kill "$refresher"
+          cat "$RUNNER_TEMP/titles"
+          { echo '### Titles Claude cleaned'; echo; grep -v '^changed=' "$RUNNER_TEMP/titles"; } >> "$GITHUB_STEP_SUMMARY"
+          # Each batch is saved as it is answered: what was decided is kept even when a later batch fails.
+          if [ -f data/titles.json ] && [ "$(sha256sum data/titles.json)" != "$before" ]; then
+            bash scripts/listings.sh upload-titles
+          fi
+          exit "$status"
       # Every chain's file, exported as the compressed JSON document the site downloads.
       - name: Build the site in Docker
         if: steps.listings.outputs.published == 'true'
@@ -44,6 +89,13 @@ jobs:
         if: steps.listings.outputs.published == 'true'
         with:
           path: site/dist
+  deploy:
+    needs: build
+    if: needs.build.outputs.published == 'true'
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.pages.outputs.page_url }}
+    steps:
       - uses: actions/deploy-pages@v5
-        if: steps.listings.outputs.published == 'true'
         id: pages

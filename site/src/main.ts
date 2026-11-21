@@ -1572,6 +1572,8 @@ function load(all: boolean): Promise<void> {
     (listings) => {
       db = listings;
       whole = all;
+      // The Chain column is as wide as its longest name whatever is picked, so it does not shrink when other chains drop out.
+      document.documentElement.style.setProperty('--chain-name', `${Math.max(0, ...[...db.chains.values()].map((chain) => chain.name.length))}ch`);
       // Which cinemas are Greater London's, as the listings say, and ?cinemas=london read as them.
       learnLondon(db.cinemas.filter((cinema) => cinema.town === 'Greater London').map((cinema) => cinema.id));
       expandArea(ticks);
