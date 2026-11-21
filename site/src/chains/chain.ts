@@ -8,18 +8,22 @@ export interface Chain {
   id: string;
   /** For people: `ODEON`. */
   name: string;
-  /** The page that books a showing, with `{id}` for the showing's own ID. */
+  /** The page that books a showing, with `{id}` for the showing's own ID and `{cinema}` for its cinema's. */
   booking: string;
+  /** For groups whose cinemas use different ticketing hosts; keys are their raw cinema IDs. */
+  bookingByCinema?: Record<string, string>;
+  /** The film's name without a chain's screening labels; the stored title stays raw. */
+  filmTitle?(title: string): string;
   /** A cinema's name in full, from its stored name: `London West End` → `ODEON London West End`. */
   cinemaName(name: string): string;
   /** A cinema's name without what every one of the chain's shares: `London West End` → `West End`. */
   short(name: string): string;
   /** The town or area a cinema is listed under; `Greater London` for London's. */
-  town(cinema: { id: string; name: string; city: string }): string;
+  town(cinema: { id: string; name: string; city: string; postcode?: string }): string;
   /** A showing's raw tag as people read it, and what kind it is; null leaves it out. */
   tag(raw: string): { label: string; kind: TagKind } | null;
-  /** A seat type as people read it: price tiers of one seat are one seat. */
-  seat(raw: string): string;
+  /** A seat type as people read it: price tiers of one seat are one seat; null leaves it out. */
+  seat(raw: string): string | null;
   /** A distributor as people read it: one name for its UK and Irish arms. */
   distributor(raw: string): string;
   /** Whether a showing is a special event (concerts, theatre, screen hire), left out unless asked for. */

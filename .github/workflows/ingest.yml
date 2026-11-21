@@ -1,93 +1,37 @@
-name: Ingest
-# Each cinema chain's listings, fetched into its own SQLite file, kept as an asset
-# of the `data` release and built into the site by the Deploy workflow.
-# ODEON, the one chain so far, publishes on Tuesdays, so the check runs hourly on
-# Tuesdays and Wednesdays; once the week is stored a check contacts nobody.
+name: Ingest all providers
+# Manual dispatcher only. Each provider owns its schedule, history and badge.
 on:
-  schedule:
-    - cron: "17 * * * 2,3"
   workflow_dispatch:
     inputs:
+      provider:
+        description: Provider to refresh
+        type: choice
+        options: [all, odeon, everyman, showcase, vue, picturehouse, cineworld, curzon, light, olympic, reel, princecharles, rio, lexi, phoenix, actone]
+        default: all
       command:
-        description: "check: ingest only if the latest listings are not stored. run: ingest now."
         type: choice
         options: [check, run]
         default: check
-concurrency:
-  group: ingest
-  cancel-in-progress: false
 permissions:
-  contents: write
   actions: write
+  contents: read
 jobs:
-  ingest:
-    # ODEON_INGEST=false pauses ODEON's schedule; it can still be started by hand.
-    if: github.ref == 'refs/heads/main' && (vars.ODEON_INGEST != 'false' || github.event_name == 'workflow_dispatch')
+  dispatch:
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
-    outputs:
-      changed: ${{ steps.publish.outputs.changed }}
     env:
       GH_TOKEN: ${{ github.token }}
-      CHAIN: odeon
-      SHOWTIMES_DATABASE: ${{ github.workspace }}/data/odeon.sqlite
-      ODEON_CINEMAS: ${{ vars.ODEON_CINEMAS }}
-      COMMAND: ${{ inputs.command || 'check' }}
+      PROVIDER: ${{ inputs.provider }}
+      COMMAND: ${{ inputs.command }}
     steps:
       - uses: actions/checkout@v7
-      - uses: astral-sh/setup-uv@v10.3.3
-      - run: uv sync --locked --no-dev
-        working-directory: ingest
-      - name: Fetch the stored listings
-        # Starting from last week's file keeps the screen sizes already
-        # fetched, and records which release week is stored.
+      - name: Start the independent provider workflows
         run: |
-          bash scripts/listings.sh download
-          sha256sum "$SHOWTIMES_DATABASE" > "$RUNNER_TEMP/before" || true
-      - name: Would this contact the chain?
-        id: due
-        working-directory: ingest
-        run: |
-          if [ "$COMMAND" = run ] || uv run showtimes-ingest "$CHAIN" due; then echo "due=true" >> "$GITHUB_OUTPUT"; fi
-      - name: Install the browser that captures ODEON's token
-        if: steps.due.outputs.due == 'true'
-        working-directory: ingest
-        run: uv run playwright install --with-deps webkit
-      - name: Ingest the listings
-        # One attempt: a failure is recorded in the file and the next hourly
-        # check tries again, up to three times a week. ODEON refuses cloud
-        # addresses, so its traffic goes through the owner's tailnet.
-        if: steps.due.outputs.due == 'true'
-        working-directory: ingest
-        run: ../scripts/via-tailnet.sh uv run showtimes-ingest "$CHAIN" "$COMMAND"
-        env:
-          TAILSCALE_EXIT_NODE: ${{ vars.TAILSCALE_EXIT_NODE }}
-          TAILSCALE_STATE: ${{ secrets.TAILSCALE_STATE }}
-      - name: Ingest the ratings
-        working-directory: ingest
-        run: uv run showtimes-ingest "$CHAIN" ratings
-        env:
-          OMDB_API_KEY: ${{ secrets.OMDB_API_KEY }}
-      - name: Publish the listings
-        id: publish
-        # Also after a failure, so that the failed run is on record next time.
-        if: always()
-        run: |
-          if [ ! -f "$SHOWTIMES_DATABASE" ] || sha256sum --check --status "$RUNNER_TEMP/before"; then
-            echo "Nothing new to publish."
-            exit 0
+          if [ "$PROVIDER" = all ]; then
+            providers="odeon everyman showcase vue picturehouse cineworld curzon light olympic reel princecharles rio lexi phoenix actone"
+          else
+            providers="$PROVIDER"
           fi
-          bash scripts/listings.sh upload "$CHAIN"
-          echo "changed=true" >> "$GITHUB_OUTPUT"
-      - name: Keep the schedule alive
-        # GitHub switches off schedules in a repository with no commits for 60
-        # days; enabling the workflow again restarts that clock.
-        if: always()
-        run: gh workflow enable ingest.yml
-  deploy:
-    needs: ingest
-    if: needs.ingest.outputs.changed == 'true'
-    permissions:
-      contents: read
-      pages: write
-      id-token: write
-    uses: ./.github/workflows/deploy.yml
+          for provider in $providers; do
+            gh workflow run "ingest-$provider.yml" --ref main -f "command=$COMMAND"
+          done

@@ -2,6 +2,7 @@
 // its addresses sometimes name a street as the city, and it publishes each
 // Friday-to-Thursday week on the Tuesday before.
 import type { Chain } from './chain';
+import { weekFullUntil } from './week.ts';
 import type { TagKind } from '../tags';
 
 // A picture format, or one of ODEON's variants of it: "IMAX 3D_Web", "XL 3D Web", "Laser 3D".
@@ -52,9 +53,5 @@ export const odeon: Chain = {
   // Event Cinema is ODEON's tag for concerts, theatre and opera. Hiring a screen
   // is listed as a film too, and is no more one than a concert is.
   isEvent: ({ title, tags }) => tags.some((tag) => tag.trim() === 'Event Cinema') || title.startsWith('Screen Hire'),
-  // The ingest records the Tuesday whose week it holds; that week ends nine days later.
-  fullUntil(state) {
-    const week = state.get('release_week');
-    return week ? new Date(Date.parse(week + 'T00:00:00Z') + 9 * 86400000).toISOString().slice(0, 10) : null;
-  },
+  fullUntil: weekFullUntil,
 };

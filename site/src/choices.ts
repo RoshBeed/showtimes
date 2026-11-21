@@ -44,11 +44,11 @@ export const needsEveryCinema = (ticks: Set<string>) => !ticks.size || [...ticks
 /** Showtimes are drawn this many at a time; more follow as the reader nears the end. */
 export const PAGE = 100;
 
-export const DEFAULT_COLUMNS: Facet[] = ['cinema', 'film'];
+export const DEFAULT_COLUMNS: Facet[] = ['chain', 'cinema', 'film'];
 /** What each showtime may show besides its time and film, in the order they are shown. */
-export const FIELDS = ['ends', 'picture', 'language', 'access', 'cert', 'cinema', 'screen', 'seats'] as const;
+export const FIELDS = ['ends', 'picture', 'language', 'access', 'cert', 'chain', 'cinema', 'screen', 'seats'] as const;
 export type Field = (typeof FIELDS)[number];
-export const DEFAULT_FIELDS: Field[] = ['picture', 'cinema', 'screen', 'seats'];
+export const DEFAULT_FIELDS: Field[] = ['picture', 'cinema', 'screen'];
 /** How a column of choices is ordered: its own way, by how many showings, or (films) by rating. */
 export type Order = 'name' | 'count' | 'rating';
 

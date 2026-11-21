@@ -59,6 +59,14 @@ CREATE TABLE IF NOT EXISTS screenings (
 );
 CREATE INDEX IF NOT EXISTS screenings_by_date ON screenings (business_date, cinema_id);
 CREATE INDEX IF NOT EXISTS screenings_by_film ON screenings (film_id);
+-- Only overrides: external ticket sellers, or an explicitly unavailable link.
+-- Older release assets need no rewrite; the site also reads files without this table.
+CREATE TABLE IF NOT EXISTS screening_links (
+    cinema_id TEXT NOT NULL,
+    screening_id TEXT NOT NULL,
+    url TEXT,
+    PRIMARY KEY (cinema_id, screening_id)
+);
 -- Seats per screen. Fetched once; a screen's size does not change.
 CREATE TABLE IF NOT EXISTS screens (
     cinema_id TEXT NOT NULL,
@@ -168,7 +176,7 @@ def stored_cinemas(path):
 
 def write(db, data):
     """Replace the listings. Runs inside the caller's transaction."""
-    for table in ("screenings", "availability", "films", "cinemas"):
+    for table in ("screening_links", "screenings", "availability", "films", "cinemas"):
         db.execute(f"DELETE FROM {table}")
     db.executemany(
         "INSERT INTO cinemas VALUES (:id, :name, :stored, :address, :latitude,"
@@ -205,5 +213,13 @@ def write(db, data):
                 "seating": json.dumps(row["seating"], ensure_ascii=False),
             }
             for row in data["screenings"]
+        ],
+    )
+    db.executemany(
+        "INSERT INTO screening_links VALUES (?, ?, ?)",
+        [
+            (row["cinema_id"], row["id"], row["booking_url"])
+            for row in data["screenings"]
+            if "booking_url" in row
         ],
     )

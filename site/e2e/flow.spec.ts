@@ -34,7 +34,7 @@ async function visit(page: Page, address: string) {
 
 test('the site opens on the finder, with the default columns and a quick start', async ({ page }) => {
   await visit(page, '/');
-  await expect(titles(page)).toHaveText(['Cinema', 'Film', 'Showtimes', /./]);
+  await expect(titles(page)).toHaveText(['Chain', 'Cinema', 'Film', 'Showtimes', /./]);
   await expect(total(page)).toHaveText('254'); // event cinema left out
   await expect(choices(page, 'Film')).toHaveText([/^All/, /^Dune/, /^Paddington/]);
 });
@@ -57,7 +57,7 @@ test('keys choose in each column, each counts what the others leave, and the add
   await page.keyboard.press('g'); // the first line: All
   await expect(total(page)).toHaveText('3');
   await page.locator('header h1 a').click(); // the default view, which needs nothing after the address
-  await expect(titles(page)).toHaveText(['Cinema', 'Film', 'Showtimes', /./]);
+  await expect(titles(page)).toHaveText(['Chain', 'Cinema', 'Film', 'Showtimes', /./]);
   await expect(page).toHaveURL(/\/$/);
 });
 
@@ -84,7 +84,7 @@ test('vim keys move between and through the columns', async ({ page }) => {
 });
 
 test('/ and ? search a column as vim does, dd hides, u and Ctrl-r undo and redo, and :help lists it all', async ({ page }) => {
-  await visit(page, '/#col=2');
+  await visit(page, '/#col=3');
   await page.keyboard.press('/');
   await page.keyboard.type('padd'); // found as it is typed
   await expect(column(page, 'Film').locator('li.selected')).toContainText('Paddington');
@@ -116,7 +116,7 @@ test('/ and ? search a column as vim does, dd hides, u and Ctrl-r undo and redo,
 });
 
 test('vim keys move through the showtimes by count, day and screen', async ({ page }) => {
-  await visit(page, '/#film=odeon-F2&col=3'); // Paddington: one showing on day 1, then ten a day from day 3
+  await visit(page, '/#film=odeon-F2&col=4'); // Paddington: one showing on day 1, then ten a day from day 3
   const selected = () => showtimes(page).evaluateAll((rows) => rows.findIndex((row) => row.classList.contains('selected')));
   await page.keyboard.press('}');
   await expect.poll(selected).toBe(1); // the next day
@@ -188,7 +188,7 @@ test(':vs adds a column, << and >> move it, :q and :only close them', async ({ p
 });
 
 test('Tab completes commands as vim\'s wildmenu does', async ({ page }) => {
-  await visit(page, '/#col=2');
+  await visit(page, '/#col=3');
   const command = page.locator('.cmdline input');
   const wildmenu = page.locator('.cmdline .wildmenu');
   await page.keyboard.press(':');
@@ -202,7 +202,7 @@ test('Tab completes commands as vim\'s wildmenu does', async ({ page }) => {
   await page.keyboard.press('Shift+Tab');
   await expect(command).toHaveValue('vs day');
   await page.keyboard.press('Enter');
-  await expect(titles(page)).toHaveText(['Cinema', 'Film', 'Day', 'Showtimes', /./]);
+  await expect(titles(page)).toHaveText(['Chain', 'Cinema', 'Film', 'Day', 'Showtimes', /./]);
   await page.keyboard.press(':');
   await page.keyboard.type('set fields+=');
   await page.keyboard.press('Tab'); // the fields not shown yet
@@ -230,15 +230,15 @@ test('the settings drawer is driven by keys too', async ({ page }) => {
   await page.keyboard.press('Enter');
   await page.keyboard.press('d');
   await page.keyboard.press('d'); // removes that column
-  await expect(titles(page)).toHaveText(['Cinema', 'Showtimes', /./]);
+  await expect(titles(page)).toHaveText(['Chain', 'Cinema', 'Showtimes', /./]);
   await page.keyboard.press('u');
-  await expect(titles(page)).toHaveText(['Cinema', 'Film', 'Showtimes', /./]);
+  await expect(titles(page)).toHaveText(['Chain', 'Cinema', 'Film', 'Showtimes', /./]);
   await page.keyboard.press('/');
   await page.keyboard.type('every film');
   await page.keyboard.press('Enter');
   await page.keyboard.press('<');
   await page.keyboard.press('<'); // Film moved left
-  await expect(titles(page)).toHaveText(['Film', 'Cinema', 'Showtimes', /./]);
+  await expect(titles(page)).toHaveText(['Chain', 'Film', 'Cinema', 'Showtimes', /./]);
   await ex(page, 'q');
   await expect(panel).toBeHidden();
   await page.keyboard.press(':');
@@ -248,7 +248,7 @@ test('the settings drawer is driven by keys too', async ({ page }) => {
 });
 
 test(':filter narrows a column and :sort orders it', async ({ page }) => {
-  await visit(page, '/#col=2');
+  await visit(page, '/#col=3');
   await ex(page, 'filter padd');
   await expect(choices(page, 'Film')).toHaveText([/^All/, /^Paddington/]);
   await page.keyboard.press('j');
@@ -264,13 +264,13 @@ test(':filter narrows a column and :sort orders it', async ({ page }) => {
   await ex(page, 'sort! seats');
   await expect(page).toHaveURL(/sort=seats&desc=1/);
   await ex(page, 'set fields+=ends fields-=picture');
-  await expect(page).toHaveURL(/fields=ends,cinema,screen,seats/);
+  await expect(page).toHaveURL(/fields=ends,cinema,screen/);
   await ex(page, 'set fields&');
   await expect(page).not.toHaveURL(/fields=/);
 });
 
 test('a long list of showtimes draws more as the reader scrolls and as the highlight moves', async ({ page }) => {
-  await visit(page, '/#col=3');
+  await visit(page, '/#col=4');
   await expect(showtimes(page)).toHaveCount(100);
   await page.locator('.column.showtimes').evaluate((element) => element.scrollTo(0, element.scrollHeight));
   await expect(showtimes(page)).toHaveCount(200);
@@ -281,7 +281,7 @@ test('a long list of showtimes draws more as the reader scrolls and as the highl
 
 test('the window holds the columns clear of the footer, and a highlighted row clear of its heading', async ({ page }) => {
   await page.setViewportSize({ width: 1024, height: 700 });
-  await visit(page, '/#col=3');
+  await visit(page, '/#col=4');
   for (const [key, times] of [['ArrowDown', 40], ['ArrowUp', 30]] as const) for (let press = 0; press < times; press += 1) await page.keyboard.press(key);
   const box = async (selector: string) => (await page.locator(selector).first().boundingBox())!;
   const [strip, footer, heads, row] = [await box('.columns'), await box('footer'), await box('.showtimes li.heads'), await box('.showtimes .selected')];
@@ -292,7 +292,9 @@ test('the window holds the columns clear of the footer, and a highlighted row cl
 test('the showtimes are headed, a heading orders them, and the settings choose what they show', async ({ page }) => {
   await visit(page, '/#film=odeon-F1');
   const heads = page.locator('.showtimes li.heads');
-  await expect(heads).toHaveText(/Time.*Picture.*Cinema.*Screen.*Seats/); // the film is chosen, so not repeated
+  await expect(heads).toHaveText(/Time.*Picture.*Cinema.*Screen$/); // the film is chosen, so not repeated
+  await ex(page, 'set fields+=seats');
+  await expect(heads).toHaveText(/Time.*Picture.*Cinema.*Screen.*Seats/);
   await expect(page.locator('.column.film li.heads')).toHaveText(/IMDb.*showings/);
   await heads.getByRole('button', { name: 'Order by seats' }).click();
   await expect(page).toHaveURL(/sort=seats/);
@@ -352,14 +354,16 @@ test('event cinema and single cinemas are chosen in the settings', async ({ page
 test('a phone shows one column at a time, and a choice moves on to the next', async ({ page }) => {
   await page.setViewportSize({ width: 375, height: 812 }); // an iPhone 13 mini
   await visit(page, '/');
-  await expect(page.locator('.column:visible .bar h2')).toHaveText('Cinema');
+  await expect(page.locator('.column:visible .bar h2')).toHaveText('Chain');
   // The header is one line, and there is no footer.
   expect((await page.locator('header').boundingBox())!.height).toBeLessThan(50);
   await expect(page.locator('footer')).toBeHidden();
   // Nothing in a column is wider than the screen, so it cannot be dragged sideways.
   const wider = () => page.locator('.column:visible').evaluate((column) => column.scrollWidth - column.clientWidth);
   await expect.poll(wider).toBe(0);
-  await page.locator('.column.cinema li', { hasText: 'All' }).first().click(); // All moves on too
+  await page.locator('.column.chain li', { hasText: 'All' }).first().click(); // All moves on too
+  await expect(page.locator('.column:visible .bar h2')).toHaveText('Cinema');
+  await page.locator('.column.cinema li', { hasText: 'All' }).first().click();
   await expect(page.locator('.column:visible .bar h2')).toHaveText('Film');
   await page.locator('.column.film li', { hasText: 'Dune' }).click();
   await expect(page.locator('.column:visible')).toHaveClass(/showtimes/);
@@ -369,7 +373,31 @@ test('a phone shows one column at a time, and a choice moves on to the next', as
   await expect.poll(wider).toBe(0);
   await expect(page.locator('.column.details .actions a')).toHaveText('Book on odeon.co.uk');
   // Out of date order each row adds its day; what no longer fits is left out, and the seats stay.
-  await visit(page, '/#sort=seats&col=3');
+  await visit(page, '/#fields=picture,cinema,screen,seats&sort=seats&col=4');
   await expect(page.locator('.showtimes li.heads')).toHaveText(/^Day.*Seats ▲$/);
   await expect.poll(wider).toBe(0);
 });
+
+test('more than one chain: films shared, a Chain column, each cinema marked and booked with its own chain', async ({ page }) => {
+  const two = listings(true);
+  await page.route('**/data/*.json.gz', (route) => route.fulfill({ contentType: 'application/json', body: route.request().url().includes('london') ? two.london : two.all }));
+  await visit(page, '/#cols=chain,cinema,film');
+  await expect(choices(page, 'Chain')).toHaveText([/^All/, /^Everyman\s*2$/, /^ODEON\s*254$/]);
+  await expect(page.locator('.column.cinema li.heads')).toHaveText(/chain/);
+  await expect(choices(page, 'Cinema').filter({ hasText: 'Hampstead' })).toHaveText(/Hampstead\s*Everyman\s*1/);
+  // Dune at Everyman is the same film as ODEON's Dune.
+  await expect(choices(page, 'Film').filter({ hasText: /^Dune/ })).toHaveText(/^Dune\s*★8.4\s*4$/);
+  await page.keyboard.press('j'); // Everyman
+  await page.keyboard.press('$'); // the showtimes, the first highlighted
+  await expect(page.locator('.column.details .actions a').first()).toHaveText('Book on everymancinema.com');
+  await expect(page.locator('.column.details .actions a').first()).toHaveAttribute('href', 'https://purchase.everymancinema.com/launch/ticketing/uuid-1');
+  await expect(page.locator('.column.details')).toContainText('Laser');
+  // Greater London is known by postcode for chains that do not list it themselves.
+  await ex(page, 'set london');
+  await expect(choices(page, 'Cinema')).toHaveText([/^All/, /^Hampstead/]); // Everyman is still chosen
+  await page.keyboard.press('0');
+  await page.keyboard.press('g');
+  await page.keyboard.press('g'); // every chain again
+  await expect(choices(page, 'Cinema')).toHaveText([/^All/, /^Hampstead/, /^Holloway/, /^West End/]);
+});
+

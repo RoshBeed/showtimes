@@ -1,15 +1,35 @@
-"""ODEON, the first chain: its API, its Tuesday release week, and its own
-additions to film titles."""
+"""Odeon configuration for the shared Vista backend adapter."""
 
 import re
 
-from showtimes_ingest.chains.odeon.run import NAME, check, ingest, settled_reason
+from showtimes_ingest.chains.vista import Vista
 from showtimes_ingest.scores import search_title as plain_title
+from showtimes_ingest.tokens import Source
 
-__all__ = ["NAME", "check", "ingest", "settled_reason", "search_title"]
+NAME = "odeon"
+SOURCE = Source(
+    NAME,
+    "https://vwc.odeon.co.uk/WSVistaWebClient/ocapi/v1/",
+    "https://www.odeon.co.uk/my-account/",
+    "initial",
+    browser_page="https://www.odeon.co.uk/",
+)
+_source = Vista(
+    SOURCE,
+    scope_env="ODEON_CINEMAS",
+    catalogue=True,
+    screen_sizes=True,
+    batch_size=None,
+)
+
+collect = _source.collect
+ingest = _source.ingest
+check = _source.check
+settled_reason = _source.settled_reason
 
 
 def search_title(title):
-    """A title as a film database knows it: "ODEON Pride Nights - A Wolf Among
-    the Swans" -> "A Wolf Among the Swans", then the usual clean-up."""
     return plain_title(re.sub(r"^ODEON\b[^-–]*[-–]\s*", "", title))
+
+
+__all__ = ["NAME", "check", "ingest", "settled_reason", "search_title"]

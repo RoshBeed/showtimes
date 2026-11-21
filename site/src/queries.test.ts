@@ -151,6 +151,7 @@ describe('queries', () => {
     expect(found(['film']).counts.film).toEqual({ 'odeon-F1': 3, 'odeon-F2': 1, 'odeon-F4': 3, 'odeon-F5': 1 });
     expect(q.film(db, 'odeon-F1-IE')).toBeNull();
     expect(q.film(db, 'odeon-F4')!.imdb).toBe(7.1);
+    expect(q.film(db, 'odeon-F1')!.runtime).toBe(155); // the edition with more showings keeps its own
     // The film is an event at cinema 001 too, though only cinema 155's showings carry the tag.
     db = q.open(exportListings([{ chain: odeon, sqlite }], new Set(['odeon-001'])));
     expect(found(['film'], {}, quiet).counts.film).toEqual({ 'odeon-F1': 2 });

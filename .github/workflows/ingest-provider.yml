@@ -1,0 +1,69 @@
+name: Ingest provider
+on:
+  workflow_call:
+    inputs:
+      provider:
+        type: string
+        required: true
+      command:
+        type: string
+        default: check
+      browser:
+        type: boolean
+        default: false
+      via-tailnet:
+        type: boolean
+        default: false
+      workflow:
+        type: string
+        required: true
+      validation:
+        description: Build the production image without contacting or publishing to providers
+        type: boolean
+        default: false
+jobs:
+  ingest:
+    name: Ingest ${{ inputs.provider }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    # The home-network identity is a single device. FIFO queueing preserves every
+    # provider's run; GitHub's default single pending slot would cancel neighbours.
+    concurrency:
+      group: ${{ inputs.validation && format('ingest-validation-{0}', github.run_id) || inputs.via-tailnet && 'ingest-home-network' || format('ingest-data-{0}', inputs.provider) }}
+      queue: max
+    env:
+      GH_TOKEN: ${{ github.token }}
+      CHAIN: ${{ inputs.provider }}
+      COMMAND: ${{ inputs.command }}
+      ODEON_CINEMAS: ${{ vars.ODEON_CINEMAS }}
+      OMDB_API_KEY: ${{ secrets.OMDB_API_KEY }}
+      TAILSCALE_EXIT_NODE: ${{ vars.TAILSCALE_EXIT_NODE }}
+      TAILSCALE_STATE: ${{ secrets.TAILSCALE_STATE }}
+      INGEST_WORKFLOW: ${{ inputs.workflow }}
+    steps:
+      - uses: actions/checkout@v7
+      - name: Build the shared ingest container
+        env:
+          TARGET: ${{ inputs.browser && 'runtime' || 'api' }}
+        run: docker build --target "$TARGET" -f ingest/Dockerfile -t showtimes-ingest .
+      - name: Fetch this provider's stored listings
+        if: ${{ !inputs.validation }}
+        run: bash scripts/listings.sh download "$CHAIN"
+      - name: Refresh this provider and publish its result
+        if: ${{ !inputs.validation }}
+        id: ingest
+        env:
+          VIA: ${{ inputs.via-tailnet && format('{0}/scripts/via-tailnet.sh', github.workspace) || '' }}
+        run: |
+          set -o pipefail
+          bash scripts/ingest-chain.sh "$CHAIN" "$COMMAND" | tee "$RUNNER_TEMP/result"
+      - name: Build the published site through its own workflow
+        # Failure records are published too, so status remains visible with old data.
+        if: ${{ always() && !inputs.validation }}
+        run: |
+          if [ -f "$RUNNER_TEMP/result" ] && grep -q '^changed=true$' "$RUNNER_TEMP/result"; then
+            gh workflow run deploy.yml --ref main
+          fi
+      - name: Keep this provider's schedule enabled
+        if: ${{ always() && !inputs.validation }}
+        run: gh workflow enable "$INGEST_WORKFLOW"

@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/RoshBeed/showtimes/actions/workflows/ci.yml/badge.svg)](https://github.com/RoshBeed/showtimes/actions/workflows/ci.yml)
 [![Deploy](https://github.com/RoshBeed/showtimes/actions/workflows/deploy.yml/badge.svg)](https://github.com/RoshBeed/showtimes/actions/workflows/deploy.yml)
-[![Ingest](https://github.com/RoshBeed/showtimes/actions/workflows/ingest.yml/badge.svg)](https://github.com/RoshBeed/showtimes/actions/workflows/ingest.yml)
+[![ODEON](https://github.com/RoshBeed/showtimes/actions/workflows/ingest-odeon.yml/badge.svg)](https://github.com/RoshBeed/showtimes/actions/workflows/ingest-odeon.yml)
 
 **Live site: [showtimes.ramuk.net](https://showtimes.ramuk.net)** · Greater London only:
 [showtimes.ramuk.net/?cinemas=london](https://showtimes.ramuk.net/?cinemas=london)
@@ -13,10 +13,12 @@ what the others leave, and the matching showtimes and their details stay in
 view. Nothing is booked here: each showing links to its cinema's own booking
 page and can be added to your calendar.
 
-The listings come from cinema chains, each through an adapter of its own.
-ODEON is the first; [adding a chain](#adding-a-chain) is a module on each side.
+The listings come from cinema chains, each through an adapter of its own:
+ODEON, Vue, Everyman, Picturehouse, Showcase, Cineworld, Curzon, The Light, Reel,
+Olympic Studios and London independents. [Adding a
+chain](#adding-a-chain) is a module on each side.
 
-![The site as its link opens it: the Cinema and Film columns, every showtime, and the first showtime's details with its double bills and the film's synopsis](docs/screenshots/desktop.png)
+![The site as its link opens it: the Chain, Cinema and Film columns, every showtime, and the first showtime's details with its double bills and the film's synopsis](docs/screenshots/desktop.png)
 
 ## Using the site
 
@@ -25,8 +27,9 @@ ODEON is the first; [adding a chain](#adding-a-chain) is a module on each side.
 2. **Choose your columns.** Settings lists the columns you show, left to right;
    move or remove each, and add others: Day (with Today and This weekend), Film,
    Cinema, Location, Picture, Language, Accessibility, Events, Seating, Screen
-   (biggest first), Certificate, Genre, People, Distributor and Release (out now or
-   opening soon).
+   (biggest first), Certificate, Genre, People, Distributor, Release (out now or
+   opening soon) and Chain. The site opens on Chain, Cinema and Film. Until a chain
+   is picked, the Cinema column says whose each cinema is.
 3. **Narrow it down.** Pick something in any column. Every column shows how many
    showings each choice would leave, and **All** at the top of each takes a choice
    back. Search a column with `/`, narrow it with `:filter`, and order it A–Z, by
@@ -96,7 +99,7 @@ the site lists all of this.
 
 | Command | Does |
 | --- | --- |
-| `:vs {column}` | Split: add a column (day, film, cinema, location, picture, language, access, events, seating, screen, cert, genre, people, distributor, release) |
+| `:vs {column}` | Split: add a column (day, film, cinema, location, picture, language, access, events, seating, screen, cert, genre, people, distributor, release, chain) |
 | `:q :close` | Close the column |
 | `:only` | Close every other column |
 | `:sort :sort n :sort rating` | Order a column A–Z, by showings, or (films) by rating |
@@ -132,8 +135,8 @@ Everything also works by clicking or tapping.
 
 There is no server. A GitHub Actions workflow fetches each chain's listings into
 a SQLite file of its own, on that chain's schedule. The site is plain files on
-GitHub Pages; the browser downloads the listings once (under 1 MB, about 200 kB
-with London only) and keeps them in memory, so every key press is answered at once.
+GitHub Pages; the browser downloads the listings once (about 5 MB, 1 MB with
+London only) and keeps them in memory, so every key press is answered at once.
 
 ### How it is put together
 
@@ -148,29 +151,87 @@ with London only) and keeps them in memory, so every key press is answered at on
 A chain's stored file stays its raw record, so how it reads can change at the
 next build without fetching anything again.
 
-**ODEON** publishes each week's listings on a Tuesday, so its check runs hourly
-on Tuesdays and Wednesdays; once the week is stored a check contacts nobody. When
-the file changes the workflow calls Deploy, which builds the new listings into
-the site. ODEON refuses requests from cloud providers' addresses, GitHub's runners
+### The chains
+
+| Chain | How its listings are read | Cinemas | Seat counts |
+| --- | --- | --- | --- |
+| ODEON | Vista's API, with the guest token its website gives a browser | about 110, UK and Ireland | yes, from seat plans, fetched once per screen |
+| Vue | its website in a real browser, then the API its pages call (`chains/vue/`) | about 90, UK and Ireland | no |
+| Everyman | Webedia's boxoffice API, plain requests (`chains/boxoffice.py`) | about 50 | no |
+| Picturehouse | its website in a real browser, keeping the listings the page itself fetches | 25 | no |
+| Showcase | the same platform and adapter as Everyman | 16 | no |
+| Cineworld | public ticketing-page guest token, then Vista's advertised dates and showtimes | 87 | no |
+| Curzon | public page-data guest token, then the shared Vista adapter | 15 | no |
+| The Light | Glitterfish fortnight guide plus all advertised coming-soon bookings | 14 | no |
+| Olympic Studios | public Cinema Cloud programme pages | 4: Barnes, Power Station, Arches and Selfridges | no |
+| Reel | Jacro film pages, plus full Admit One programmes for the three older sites | all 16 | no |
+| Prince Charles Cinema | one complete programme page, including advance bookings and sold-out showings | 1 | no |
+| Rio, Lexi, Phoenix and ActOne | shared Opus adapter; each venue's complete public programme in one page | 1 each | no |
+
+Reading a chain "in a real browser" is ODEON's method, shared in
+`showtimes_ingest/browser.py`: headless WebKit opens the chain's website, the site
+sets itself up for a visitor as it always does, and the ingest asks the site's own
+API from inside the page. If a site answers with a challenge (a check that the
+visitor is a person) the ingest stops there and does not try to pass it.
+
+Cineworld and Curzon use the public guest-session routes identified by
+[At The Movies](https://github.com/andycroll/atthemovies), adapted to our existing
+Python modules and storage. Their guest pages are read by curl-impersonate's
+Chrome 150 profile, bundled and checksum-verified in the ingest container. No
+browser or JavaScript is needed for them. Tokens stay in memory. The shared
+Vista collector reads every advertised date in batches of at most five cinemas.
+
+Each chain is collected once a week, keeping its traffic minimal: on the first
+check after its weekly window opens (`ingest/src/showtimes_ingest/policy.py`), once
+its Friday-to-Thursday week is published and before that Friday. ODEON's window
+opens on Wednesdays at 21:00, Everyman's on Wednesdays at 06:00, every other
+chain's on Tuesdays at 06:00 (London time). Each chain has its own workflow
+(`ingest-<chain>.yml`, all built on `ingest-provider.yml`), scheduled at its window
+and twice more an hour apart; once the week is stored a check contacts nobody, and
+three failures pause the chain until the next week's window. A failed fetch keeps
+the previous listings. When a file changes the workflow builds the new listings
+into the site. Everyman and Showcase are asked for three months ahead, in about 20 and
+12 requests a week, Vue in about a hundred (one per cinema; each cinema's
+address is read once and kept), Picturehouse in a single page load.
+
+ODEON now shares the Vista collector with Cineworld and Curzon: its guest token is
+read by curl-impersonate first, with a real browser as the one fallback if that
+fails. ODEON refuses requests from cloud providers' addresses, GitHub's runners
 included, so its traffic goes through a Tailscale exit node on a home network
-(`scripts/via-tailnet.sh`). Nothing else uses it.
+(`scripts/via-tailnet.sh`), as do Vue's, Picturehouse's, Cineworld's and Curzon's.
+The tailnet identity is one device, so those workflows queue for it in turn.
+
+BFI Southbank's first programme page opens in a browser, but subsequent pages and BFI IMAX return
+challenges, so a complete BFI feed is not available yet. See the
+[source survey](docs/cinema-sources.md) for tested routes and the next smaller
+chains, and the [London coverage audit](docs/london-coverage.md) for venues still
+missing. London is the coverage priority; chain adapters collect all their
+supported cinemas nationwide.
 
 ### Adding a chain
 
 1. **Ingest:** a package in `ingest/src/showtimes_ingest/chains/<chain>/` that
    writes the shared schema (`store.py`) and offers what `chains/__init__.py`
    lists: `NAME`, `check`, `ingest`, `settled_reason` and `search_title`. Add it
-   to `CHAINS` there, with tests against a fake of the chain.
+   to `CHAINS` there, with tests against a fake of the chain. A chain read with
+   plain requests can use `http.Client`, one read through its website
+   `browser.Browser`, and the shared lifecycle in `refresh.py` with its weekly
+   window in `policy.py`; a chain on a platform another already uses needs only its name and
+  website (`chains/everyman/`). Vista guest-token providers use `guest.Client`
+  and the shared `chains/vista.py` collector.
 2. **Export:** a module in `site/src/chains/<chain>.ts` implementing `Chain`
    (`chain.ts`): its name, booking link, cinema names and towns, how its tags,
    seats and distributors read, which showings are special events, and how far
    its schedule is published. Add it to `CHAINS` in `index.ts`.
-3. **Workflow:** an ingest job for the chain on its own schedule, publishing
-   `data/<chain>.sqlite` with `scripts/listings.sh upload <chain>`. Deploy builds
-   every published file into the site.
+3. **Workflow:** an `ingest-<chain>.yml` calling `ingest-provider.yml`, scheduled
+   at the chain's weekly window, with `browser` and `via-tailnet` set if it needs
+   them. Add the chain to the manual dispatcher in `ingest.yml`. Each publishes
+   `data/<chain>.sqlite`, and every published file is built into the site.
 
-Check first that the chain's terms allow it, and keep its traffic to what its
-schedule needs: one ingest per published week, no retry loops.
+Check first that the chain's terms allow it, read only what its own website
+reads, say who is asking (`http.USER_AGENT`), and keep its traffic to what its
+schedule needs: one ingest per published week, a pause between requests, no
+retry loops.
 
 ### Repository settings
 
@@ -181,16 +242,22 @@ schedule needs: one ingest per published week, no retry loops.
 | Variable | `TAILSCALE_EXIT_NODE` | Name of the exit node device |
 | Variable | `ODEON_CINEMAS` | Optional. ODEON site IDs to store, comma-separated; empty stores every cinema |
 | Variable | `ODEON_INGEST` | Optional. `false` pauses ODEON's schedule |
+| Variable | `CHAINS_INGEST` | Optional. `false` pauses every other chain's schedule |
+| Variable | `<CHAIN>_INGEST` | Optional. `false` pauses one chain's schedule, as `VUE_INGEST` |
 
-Start an ingest by hand:
+Start one chain's ingest by hand, or every chain's through the dispatcher:
 
 ```bash
-gh workflow run ingest.yml -f command=run
+gh workflow run ingest-odeon.yml -f command=check
 ```
 
-`check` ingests only if the chain's latest listings are not stored yet; `run`
-ingests now. A failed ingest is recorded in the chain's file and tried again at
-the next check, at most three times a week.
+```bash
+gh workflow run ingest.yml -f provider=all -f command=check
+```
+
+`check` ingests only if the chain's week is not stored yet; `run` ingests now. A
+failed ingest is recorded in the chain's file and tried again at the next check,
+at most three times a week.
 
 ## Working on it
 
@@ -200,29 +267,49 @@ The site needs the chains' listings files to show anything:
 scripts/listings.sh download
 ```
 
-Then, in `site/` (Node 26):
+Run the application and its checks in Docker. From the repository root:
 
 ```bash
-npm install
+docker build --target checks -f ingest/Dockerfile -t showtimes-ingest-checks .
 ```
+
+To run an ingest manually, build the container once, then choose a provider:
 
 ```bash
-npm run listings
+docker build -f ingest/Dockerfile -t showtimes-ingest .
+bash scripts/ingest.sh cineworld run
+bash scripts/ingest.sh curzon run
 ```
+
+Files are written to `data/<provider>.sqlite`. This does not publish or deploy.
+For providers that need no browser, the smaller image is sufficient:
 
 ```bash
-npm run dev
+docker build --target api -f ingest/Dockerfile -t showtimes-ingest-api .
+SHOWTIMES_INGEST_IMAGE=showtimes-ingest-api bash scripts/ingest.sh princecharles run
 ```
+
+The site's checks use Node 26 in Docker. The separate dependency volume keeps
+the container's platform-specific packages inside Docker:
 
 ```bash
-npm test
+docker run --rm --entrypoint sh -v "$PWD:/work" -w /work/site \
+  --mount type=volume,target=/work/site/node_modules,volume-nocopy \
+  node:26-bookworm-slim -c 'npm ci && npm test && npm run build'
 ```
 
-In `ingest/` (Python 3.13, [uv](https://docs.astral.sh/uv/)):
+To view the site with the downloaded listings:
 
 ```bash
-uv run python -m unittest discover -s tests
+docker run --rm --entrypoint sh -p 5173:5173 -v "$PWD:/work" -w /work/site \
+  --mount type=volume,target=/work/site/node_modules,volume-nocopy \
+  node:26-bookworm-slim \
+  -c 'npm ci && npm run listings && npm run dev -- --host 0.0.0.0'
 ```
+
+Open `http://localhost:5173`. CI also runs the built site's browser tests.
+Production ingestion and publishing run through GitHub Actions after a pull
+request is merged to `main`.
 
 The ingest tests use a fake of each chain and a temporary database. To keep the
 chains' traffic minimal, do not run a real ingest more than its schedule does.

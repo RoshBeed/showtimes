@@ -6,33 +6,32 @@ on:
 jobs:
   ingest:
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: ingest
     steps:
       - uses: actions/checkout@v7
-      - uses: astral-sh/setup-uv@v10.3.3
-      - run: uv sync --locked
-      - run: uv run ruff check .
-      - run: uv run ruff format --check .
-      - run: uv run python -m unittest discover -s tests -v
+      - name: Check ingest in Docker
+        run: docker build --target checks -f ingest/Dockerfile -t showtimes-ingest-checks .
+      # actionlint 1.7.12 predates GitHub's documented FIFO queue property.
+      # Only that exact diagnostic is ignored; the reusable workflow is also
+      # parsed and executed by GitHub in the workflow job below.
+      - name: Validate every provider workflow
+        run: docker run --rm -v "$PWD:/repo" -w /repo rhysd/actionlint:1.7.12 -ignore 'unexpected key "queue" for "concurrency" section'
       # The scripts the Ingest workflow runs are otherwise first read on the day they are needed.
-      - run: for script in ../scripts/*.sh; do bash -n "$script"; done
+      - run: for script in scripts/*.sh; do bash -n "$script"; done
+  workflow:
+    permissions:
+      contents: read
+    uses: ./.github/workflows/ingest-provider.yml
+    with:
+      provider: odeon
+      workflow: ci.yml
+      browser: true
+      validation: true
   site:
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: site
     steps:
       - uses: actions/checkout@v7
-      - uses: actions/setup-node@v7
-        with:
-          node-version-file: site/.nvmrc
-          cache: npm
-          cache-dependency-path: site/package-lock.json
-      - run: npm ci
-      - run: npm test
-      - run: npm run build
-      # The site in a real browser, driven by keys, clicks and scrolling.
-      - run: npx playwright install --with-deps chromium
-      - run: npm run e2e -- --trace off
+      - name: Check the site and browser interactions in Docker
+        run: |
+          docker run --rm --ipc=host -v "$PWD:/work" -w /work/site \
+            --mount type=volume,target=/work/site/node_modules,volume-nocopy \
+            node:26-bookworm-slim sh -c 'npm ci && npm test && npm run build && npx playwright install --with-deps chromium && npm run e2e -- --trace off'

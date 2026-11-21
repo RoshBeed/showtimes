@@ -27,14 +27,17 @@ export interface Data {
   values: unknown[];
   /** Each tag a showing may have, and its kind. */
   tags: Record<string, TagKind>;
+  /** Published exceptions to a chain's booking template; null means no booking link. */
+  bookingLinks?: Record<string, string | null>;
 }
 
 export interface Chain {
   /** `odeon`; every ID it exports starts `odeon-`. */
   id: string;
   name: string;
-  /** The page that books a showing, with `{id}` for the showing's ID. */
+  /** The page that books a showing, with `{id}` for the showing's ID and `{cinema}` for its cinema's. */
   booking: string;
+  bookingByCinema?: Record<string, string>;
   ingested: string | null;
   fullUntil: string | null;
 }
@@ -81,6 +84,7 @@ interface Show {
 }
 
 export interface Listings {
+  bookingLinks: Record<string, string | null>;
   chains: Map<string, Chain>;
   ingested: string | null;
   fullUntil: string | null;
@@ -94,7 +98,10 @@ export interface Listings {
   /** Showings by cinema ID and ID; made the first time one is asked for. */
   byId?: Map<string, Show>;
   /** What each showing offers each column, by its index; made the first time a column is shown. */
-  keys?: Map<string, string[][]>;
+  keys?: Map<string, Keys>;
+  /** The showings still to come, for each scope asked about (the finder's, a cinema's for
+   *  double bills), kept until the next showing starts. */
+  upcoming?: { low: number; scopes: Map<string, Show[]> };
 }
 
 export function open(data: Data): Listings {
@@ -120,6 +127,7 @@ export function open(data: Data): Listings {
     };
   });
   return {
+    bookingLinks: data.bookingLinks ?? {},
     chains: new Map(data.chains.map((chain) => [chain.id, chain])),
     ingested: data.ingested,
     fullUntil: data.fullUntil,
@@ -156,8 +164,9 @@ export interface Showing {
   endsAt: string | null;
   title: string;
   cinema: string;
-  /** The cinema's short name. */
+  /** The cinema's short name, and its chain's ID. */
   short: string;
+  chain: string;
   screen: string;
   capacity: number | null;
   experiences: string[];
@@ -186,12 +195,19 @@ function upcoming(l: Listings, scope: Scope, scoped = true): Show[] {
     if (l.shows[middle].startsAt > scope.now) high = middle;
     else low = middle + 1;
   }
+  if (l.upcoming?.low !== low) l.upcoming = { low, scopes: new Map() };
+  const key = [scoped, scope.noEvents, scope.cinemas.join(), scope.hidden.join()].join('|');
+  const kept = l.upcoming.scopes.get(key);
+  if (kept) return kept;
   // A film that is an event anywhere is one everywhere, whatever its other showings say.
-  const rest = scope.noEvents ? l.shows.slice(low).filter((show) => !l.events.has(show.filmId)) : l.shows.slice(low);
-  if (!scoped || (!scope.cinemas.length && !scope.hidden.length)) return rest;
-  const ticked = new Set(scope.cinemas);
-  const hidden = new Set(scope.hidden);
-  return rest.filter((show) => (!ticked.size || ticked.has(show.cinemaId)) && !hidden.has(show.filmId));
+  let rest = scope.noEvents ? l.shows.slice(low).filter((show) => !l.events.has(show.filmId)) : l.shows.slice(low);
+  if (scoped && (scope.cinemas.length || scope.hidden.length)) {
+    const ticked = new Set(scope.cinemas);
+    const hidden = new Set(scope.hidden);
+    rest = rest.filter((show) => (!ticked.size || ticked.has(show.cinemaId)) && !hidden.has(show.filmId));
+  }
+  l.upcoming.scopes.set(key, rest);
+  return rest;
 }
 
 
@@ -239,6 +255,7 @@ const SHOWING_ORDERS: Record<string, (sign: number) => (a: Show, b: Show) => num
   time: (sign) => (a, b) => sign * order(a.time, b.time),
   film: (sign) => (a, b) => sign * order(a.title, b.title),
   cinema: (sign) => (a, b) => sign * order(a.place, b.place),
+  chain: (sign) => (a, b) => sign * order(a.cinema?.chain ?? '', b.cinema?.chain ?? '') || order(a.startsAt, b.startsAt),
   // Numbered screens come before named ones, in number order.
   screen: (sign) => (a, b) => {
     const [[nameA, numberA], [nameB, numberB]] = [screenName(a), screenName(b)];
@@ -255,7 +272,7 @@ const SHOWING_ORDERS: Record<string, (sign: number) => (a: Show, b: Show) => num
 
 const asShowing = (show: Show): Showing => ({
   cinemaId: show.cinemaId, id: show.id, filmId: show.filmId, date: show.date, startsAt: show.startsAt,
-  time: show.time, endsAt: show.filmEndsAt, title: show.film!.title, cinema: show.cinema!.name, short: show.cinema!.short, screen: show.screen,
+  time: show.time, endsAt: show.filmEndsAt, title: show.film!.title, cinema: show.cinema!.name, short: show.cinema!.short, chain: show.cinema!.chain, screen: show.screen,
   capacity: show.capacity, experiences: show.experiences, soldOut: show.soldOut,
 });
 
@@ -297,7 +314,7 @@ export function showing(l: Listings, cinemaId: string, id: string): ShowingDetai
   if (!show?.film || !show.cinema) return null;
   return {
     cinemaId, id, filmId: show.filmId, date: show.date, startsAt: show.startsAt, time: show.time, endsAt: show.filmEndsAt,
-    title: show.film.title, cinema: show.cinema.name, short: show.cinema.short, screen: show.screen, capacity: show.capacity,
+    title: show.film.title, cinema: show.cinema.name, short: show.cinema.short, chain: show.cinema.chain, screen: show.screen, capacity: show.capacity,
     experiences: show.experiences, soldOut: show.soldOut, filmStartsAt: show.filmStartsAt,
     filmEndsAt: show.filmEndsAt, runtime: show.film.runtime, seating: show.seating, address: show.cinema.address,
   };
@@ -305,9 +322,16 @@ export function showing(l: Listings, cinemaId: string, id: string): ShowingDetai
 
 /** The page that books a showing on its chain's site. */
 export function booking(l: Listings, show: { cinemaId: string; id: string }): string | null {
+  const key = JSON.stringify([show.cinemaId, show.id]);
+  if (Object.hasOwn(l.bookingLinks, key)) return l.bookingLinks[key];
   const cinema = l.cinemas.find((each) => each.id === show.cinemaId);
   const chain = cinema && l.chains.get(cinema.chain);
-  return chain ? chain.booking.replace('{id}', encodeURIComponent(show.id)) : null;
+  if (!chain) return null;
+  // The chain's own IDs, each part of one kept apart: Vue's showing is film/session.
+  const own = (id: string) => id.split('/').map(encodeURIComponent).join('/');
+  const id = show.cinemaId.slice(chain.id.length + 1);
+  const template = chain.bookingByCinema?.[id] ?? chain.booking;
+  return template ? template.replace('{cinema}', own(id)).replace('{id}', own(show.id)) : null;
 }
 
 /** Titles of the given films, for listing what a visitor has hidden. */
@@ -325,7 +349,7 @@ export function titles(l: Listings, ids: string[]): { id: string; title: string 
 /** The columns a visitor can choose to show: what a showing can be chosen by. */
 export const FACETS = [
   'day', 'film', 'cinema', 'location', 'picture', 'language', 'access', 'event', 'seat',
-  'screen', 'cert', 'genre', 'person', 'distributor', 'release',
+  'screen', 'cert', 'genre', 'person', 'distributor', 'release', 'chain',
 ] as const;
 export type Facet = (typeof FACETS)[number];
 /** One choice per column; a column left out means all. */
@@ -356,12 +380,26 @@ function keyer(facet: Facet, today: string): (show: Show) => string[] {
     case 'person': return (show) => [...new Set(show.film?.people.map((person) => person.name))];
     case 'distributor': return (show) => (show.film?.distributor ? [show.film.distributor] : []);
     case 'release': return (show) => [show.film?.release && show.film.release > today ? 'soon' : 'out'];
+    case 'chain': return (show) => (show.cinema ? [show.cinema.chain] : []);
   }
 }
-function keysOf(l: Listings, facet: Facet, today: string): string[][] {
+/** What each showing offers a column, as numbers: `ids[show.index]` are positions in `names`.
+ *  Counting numbers into an array is much quicker than counting strings into a map,
+ *  which matters in a browser without its JIT (Safari's Lockdown Mode). */
+interface Keys { names: string[]; ids: number[][] }
+function keysOf(l: Listings, facet: Facet, today: string): Keys {
   l.keys ??= new Map();
   const name = `${facet}/${today}`;
-  if (!l.keys.has(name)) l.keys.set(name, l.shows.map(keyer(facet, today)));
+  if (!l.keys.has(name)) {
+    const names: string[] = [];
+    const numbers = new Map<string, number>();
+    const ids = l.shows.map(keyer(facet, today)).map((keys) => keys.map((key) => {
+      let id = numbers.get(key);
+      if (id === undefined) numbers.set(key, (id = names.push(key) - 1));
+      return id;
+    }));
+    l.keys.set(name, { names, ids });
+  }
   return l.keys.get(name)!;
 }
 
@@ -370,8 +408,9 @@ function keysOf(l: Listings, facet: Facet, today: string): string[][] {
  *  in start order. A search narrows the showings, not the counts. */
 export function find(l: Listings, scope: Scope, facets: Facet[], picks: Picks, text = ''): { counts: Map<string, number>[]; shows: Show[] } {
   const keys = facets.map((facet) => keysOf(l, facet, scope.today));
-  const wanted = facets.map((facet) => picks[facet]);
-  const counts = facets.map(() => new Map<string, number>());
+  // A choice the column has never seen matches nothing: -2, which no showing offers.
+  const wanted = facets.map((facet, column) => (picks[facet] === undefined ? -1 : (keys[column].names.indexOf(picks[facet]!) + 1 || -1) - 1));
+  const tallies = keys.map((column) => new Float64Array(column.names.length));
   // A column about the film (its people, say) is counted per film and spread after:
   // one tally a showing instead of one for each of its film's many people.
   const perFilm = facets.map((facet) => (FILM_FACETS.has(facet) ? new Map<string, { n: number; index: number }>() : null));
@@ -383,7 +422,7 @@ export function find(l: Listings, scope: Scope, facets: Facet[], picks: Picks, t
       else films.set(show.filmId, { n: 1, index: show.index });
       return;
     }
-    for (const key of keys[column][show.index]) counts[column].set(key, (counts[column].get(key) ?? 0) + 1);
+    for (const id of keys[column].ids[show.index]) tallies[column][id] += 1;
   };
   const needle = text.toLowerCase();
   const shows: Show[] = [];
@@ -393,7 +432,7 @@ export function find(l: Listings, scope: Scope, facets: Facet[], picks: Picks, t
     let failed = -1;
     let failures = 0;
     for (let column = 0; column < facets.length && failures < 2; column += 1) {
-      if (wanted[column] !== undefined && !keys[column][show.index].includes(wanted[column]!)) {
+      if (wanted[column] !== -1 && !keys[column].ids[show.index].includes(wanted[column])) {
         failures += 1;
         failed = column;
       }
@@ -409,8 +448,14 @@ export function find(l: Listings, scope: Scope, facets: Facet[], picks: Picks, t
   }
   perFilm.forEach((films, column) => {
     for (const { n, index } of films?.values() ?? []) {
-      for (const key of keys[column][index]) counts[column].set(key, (counts[column].get(key) ?? 0) + n);
+      for (const id of keys[column].ids[index]) tallies[column][id] += n;
     }
+  });
+  // In the order the values were first seen, as the maps were filled before.
+  const counts = tallies.map((tally, column) => {
+    const found = new Map<string, number>();
+    tally.forEach((n, id) => { if (n) found.set(keys[column].names[id], n); });
+    return found;
   });
   return { counts, shows };
 }

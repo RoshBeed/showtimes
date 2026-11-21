@@ -3,15 +3,17 @@
 // today, so the showings are always still to come.
 import { readFileSync } from 'node:fs';
 import { DatabaseSync } from 'node:sqlite';
+import { everyman } from '../src/chains/boxoffice.ts';
 import { odeon } from '../src/chains/odeon.ts';
-import { exportListings } from '../src/export.ts';
+import { exportListings, type Source } from '../src/export.ts';
 
 const store = readFileSync(new URL('../../ingest/src/showtimes_ingest/store.py', import.meta.url), 'utf8');
 const SCHEMA = /SCHEMA = """([\s\S]*?)"""/.exec(store)![1];
 
 export const day = (ahead: number) => new Date(Date.now() + ahead * 86400000).toISOString().slice(0, 10);
 
-export function listings(): { all: string; london: string } {
+/** ODEON's listings, and with `alsoEveryman` a second chain beside them. */
+export function listings(alsoEveryman = false): { all: string; london: string } {
   const sqlite = new DatabaseSync(':memory:');
   sqlite.exec(SCHEMA);
   sqlite.exec(`
@@ -37,7 +39,23 @@ export function listings(): { all: string; london: string } {
   showing('155', 'E', 'F3', 3, '19:00', '22:00', ['Event Cinema']);
   // Enough of one film to need more than one batch of rows.
   for (let n = 0; n < 250; n += 1) showing('090', `P${n}`, 'F2', 3 + Math.floor(n / 10), `${String(10 + (n % 10)).padStart(2, '0')}:00`, `${String(11 + (n % 10)).padStart(2, '0')}:40`);
-  const sources = [{ chain: odeon, sqlite }];
+  const sources: Source[] = [{ chain: odeon, sqlite }];
+  if (alsoEveryman) {
+    // Everyman: one London cinema and one elsewhere, Dune (one film with ODEON's) and a film of its own.
+    const second = new DatabaseSync(':memory:');
+    second.exec(SCHEMA);
+    second.exec(`
+      INSERT INTO cinemas VALUES ('X1', 'Hampstead', 1, '{"line1":"5 Holly Bush Vale","city":"London","postcode":"NW3 6TX"}', 51.55, -0.18),
+                                 ('X2', 'Bath', 1, '{"city":"Bath","postcode":"BA1 1SS"}', 51.38, -2.36);
+      INSERT INTO films VALUES ('6272', 'Dune', 155, '12A', '2026-01-01', '[]', '[]', 'Warner', '', NULL),
+                               ('77', 'Wicker', 105, '15', '2026-01-01', '[]', '[]', 'Black Bear', '', NULL);
+      INSERT INTO runs (source, started_at, finished_at, status) VALUES ('everyman', 'a', '${new Date().toISOString().slice(0, 19)}Z', 'ok');
+    `);
+    const show = second.prepare('INSERT INTO screenings VALUES (?, ?, ?, ?, ?, ?, NULL, NULL, ?, ?, ?, ?, 0)');
+    show.run('X1', 'uuid-1', '6272', day(1), `${day(1)}T17:00:00Z`, '17:00', 'Screen 1', '1', '["Format.Projection.Laser","Format.Projection.Digital"]', '[]');
+    show.run('X2', 'uuid-2', '77', day(1), `${day(1)}T19:30:00Z`, '19:30', 'Screen 2', '2', '["Showtime.Accessibility.Subtitled"]', '[]');
+    sources.push({ chain: everyman, sqlite: second });
+  }
   const all = exportListings(sources);
   const london = all.cinemas.filter((cinema) => cinema.town === 'Greater London').map((cinema) => cinema.id);
   return { all: JSON.stringify(all), london: JSON.stringify(exportListings(sources, new Set(london))) };

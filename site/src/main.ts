@@ -91,7 +91,10 @@ function home(): HTMLElement {
 /** The link to book a showing on its chain's site, named after the site: `Book on odeon.co.uk`. */
 function bookingLink(show: { cinemaId: string; id: string }): Node[] {
   const url = q.booking(db, show);
-  return url ? [link(`Book on ${new URL(url).hostname.replace(/^www\./, '')}`, url)] : [];
+  if (!url) return [];
+  // The site, not its booking subdomain: purchase.everymancinema.com is everymancinema.com.
+  const host = new URL(url).hostname.split('.');
+  return [link(`Book on ${host.slice(-(host.at(-2) === 'co' ? 3 : 2)).join('.')}`, url)];
 }
 const link = (label: string, href: string) => h('a', { href, target: '_blank', rel: 'noopener' }, label);
 const count = (n: number, noun: string) => `${n.toLocaleString('en-GB')} ${noun}${n === 1 ? '' : 's'}`;
@@ -119,7 +122,7 @@ interface Kind {
   /** How a choice reads, and a note beside its count. */
   label(value: string): [name: string, note: string];
   /** What the notes are, for the heading over them. */
-  notes?: string;
+  notes?: string | (() => string);
   /** The column's own order. */
   natural(values: string[], counts: Map<string, number>): string[];
 }
@@ -129,6 +132,14 @@ const busiest = (values: string[], counts: Map<string, number>) => [...values].s
 const plain = (value: string): [string, string] => [value, ''];
 const tag = (value: string): [string, string] => [value, ''];
 const cinemaNames = () => new Map(db.cinemas.map((cinema) => [cinema.id, cinema.short]));
+/** With more than one chain, a cinema's chain, for a note beside its name: two chains may each have a West End.
+ * Once a chain is picked, every cinema left is that chain's, so the note would only repeat it. */
+const chainOf = (cinemaId: string) => {
+  if (db.chains.size < 2 || view.picks.chain) return '';
+  const chain = cinemaChains.get(cinemaId);
+  return chain ? db.chains.get(chain)?.name ?? chain : '';
+};
+let cinemaChains = new Map<string, string>();
 let names = new Map<string, string>();
 
 const KINDS: Record<q.Facet, Kind> = {
@@ -149,7 +160,7 @@ const KINDS: Record<q.Facet, Kind> = {
     },
     natural: alphabetical(() => KINDS.film),
   },
-  cinema: { title: 'Cinema', about: 'each cinema', label: (value) => [names.get(value) ?? value, ''], natural: alphabetical(() => KINDS.cinema) },
+  cinema: { title: 'Cinema', about: 'each cinema', notes: () => (db.chains.size > 1 && !view.picks.chain ? 'chain' : ''), label: (value) => [names.get(value) ?? value, chainOf(value)], natural: alphabetical(() => KINDS.cinema) },
   location: { title: 'Location', about: 'towns and cities, and Greater London', label: plain, natural: alphabetical(() => KINDS.location) },
   picture: { title: 'Picture', about: 'IMAX, Dolby, 3D, Laser and the like', label: tag, natural: busiest },
   language: { title: 'Language', about: 'subtitles, captions and the language spoken', label: tag, natural: busiest },
@@ -178,6 +189,11 @@ const KINDS: Record<q.Facet, Kind> = {
     label: (value) => [value === 'soon' ? 'Opening soon' : 'Out now', ''],
     natural: (values) => ['out', 'soon'].filter((value) => values.includes(value)),
   },
+  chain: {
+    title: 'Chain', about: 'which cinema chain',
+    label: (value) => [db.chains.get(value)?.name ?? value, ''],
+    natural: alphabetical(() => KINDS.chain),
+  },
 };
 /** The parts of a showtime row: a heading, what it reads for a showtime, how wide it may grow, and the order it sorts by. */
 interface Part { head: string; text(row: q.Showing): string; track: string; sort?: string; }
@@ -190,15 +206,16 @@ const PARTS: Record<'day' | 'time' | 'film' | Field, Part> = {
   language: { head: 'Language', text: (row) => formats(row.experiences, ['Language']), track: 'minmax(auto, 8ch)' },
   access: { head: 'Access', text: (row) => formats(row.experiences, ['Accessibility']), track: 'minmax(auto, 8ch)' },
   cert: { head: 'Cert', text: (row) => q.film(db, row.filmId)?.certificate || '', track: 'max-content' },
+  chain: { head: 'Chain', text: (row) => db.chains.get(row.chain)?.name ?? row.chain, track: 'max-content', sort: 'chain' },
   cinema: { head: 'Cinema', text: (row) => row.short, track: 'minmax(auto, 11ch)', sort: 'cinema' },
   screen: { head: 'Screen', text: (row) => row.screen.replace(/^Screen /, '#'), track: 'minmax(auto, 5ch)', sort: 'screen' },
   seats: { head: 'Seats', text: (row) => (row.capacity ? String(row.capacity) : ''), track: 'max-content', sort: 'seats' },
 };
 /** When the showtimes are too wide for their column, these are left out first. */
-const LEAST_NEEDED: Field[] = ['language', 'access', 'cert', 'ends', 'picture', 'screen', 'cinema'];
+const LEAST_NEEDED: Field[] = ['language', 'access', 'cert', 'ends', 'picture', 'screen', 'chain', 'cinema'];
 const FIELD_ABOUT: Record<Field, string> = {
   ends: 'when the film ends', picture: 'IMAX, 3D and the like', language: 'subtitles, dubbing and audio', access: 'audio description, relaxed and the like',
-  cert: 'the age certificate', cinema: 'which cinema', screen: 'which screen', seats: 'how many seats the screen has',
+  cert: 'the age certificate', chain: 'which cinema chain', cinema: 'which cinema', screen: 'which screen', seats: 'how many seats the screen has',
 };
 
 const ORDERS: Record<Order, string> = { name: 'A–Z', count: 'most', rating: '★' };
@@ -270,6 +287,7 @@ function render() {
   }
   if (!db) return; // still downloading; load() draws the page when it arrives
   names = cinemaNames();
+  cinemaChains = new Map(db.cinemas.map((cinema) => [cinema.id, cinema.chain]));
   view = readView(location.hash);
   view.focus = Math.min(view.focus, lastColumn());
   recorded ??= { key: location.search + writeView({ ...view, focus: 0, row: 0 }), href: location.search + location.hash }; // where undo stops
@@ -364,7 +382,7 @@ function render() {
       // Days past the published week are set apart, once, instead of each saying so.
       const advance = facet === 'day' && order === 'name' && db.fullUntil ? values.find((value) => value !== 'weekend' && value > db.fullUntil!) : undefined;
       const all = [undefined, ...values];
-      const heads = h('li', { class: 'heads', 'aria-hidden': 'true' }, h('span', {}), h('span', {}, KINDS[facet].notes ?? ''), h('span', {}, 'showings'));
+      const heads = h('li', { class: 'heads', 'aria-hidden': 'true' }, h('span', {}), h('span', {}, typeof KINDS[facet].notes === 'function' ? (KINDS[facet].notes as () => string)() : KINDS[facet].notes ?? ''), h('span', {}, 'showings'));
       lists[index].replaceChildren(heads, ...all.flatMap((value) => {
         const [name, note] = value === undefined ? ['All', ''] : KINDS[facet].label(value);
         const item = h('li', { class: [value === picked ? 'selected' : '', value === undefined ? 'pinned' : ''].join(' '), title: name },
@@ -696,7 +714,7 @@ function fillPanel() {
         keyed(checkbox(label, on, (now) => changed(() => toggle(ticks, list, now)), mixed), `cinema-${key}`);
       return [h('li', {},
         box(` ${town}`, ticked === ids.length, ids, ticked > 0 && ticked < ids.length, town),
-        ...(single ? [] : [h('ul', {}, ...listed.map((cinema) => h('li', {}, box(` ${cinema.short}`, ticks.has(cinema.id), [cinema.id]))))]))];
+        ...(single ? [] : [h('ul', {}, ...listed.map((cinema) => h('li', {}, box(` ${db.chains.size > 1 ? cinema.name : cinema.short}`, ticks.has(cinema.id), [cinema.id]))))]))];
     }));
   };
   drawCinemas();
@@ -820,7 +838,7 @@ const NORMAL: [string, string][] = [
 ];
 /** Ex commands, for :help. */
 const EX: [string, string][] = [
-  [':vs {column}', 'Split: add a column (day, film, cinema, location, picture, language, access, events, seating, screen, cert, genre, people, distributor, release)'],
+  [':vs {column}', 'Split: add a column (day, film, cinema, location, picture, language, access, events, seating, screen, cert, genre, people, distributor, release, chain)'],
   [':q  :close', 'Close the column'],
   [':only', 'Close every other column'],
   [':sort  :sort n  :sort rating', 'Order a column A–Z, by showings, or (films) by rating'],
@@ -1100,7 +1118,7 @@ command.addEventListener('blur', () => { if (cmdline.classList.contains('typing'
 const COLUMN_NAMES: Record<string, q.Facet> = {
   ...Object.fromEntries(q.FACETS.map((facet) => [facet, facet])),
   ...Object.fromEntries(q.FACETS.map((facet) => [KINDS[facet].title.toLowerCase(), facet])),
-  accessibility: 'access', event: 'event', events: 'event', seats: 'seat', certificate: 'cert', people: 'person',
+  accessibility: 'access', event: 'event', events: 'event', seats: 'seat', certificate: 'cert', people: 'person', chains: 'chain',
 };
 /** Each command, with the shortest it may be cut to, as in vim's :h[elp]. */
 const COMMANDS: [string, number][] = [

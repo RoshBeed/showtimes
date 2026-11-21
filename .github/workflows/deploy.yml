@@ -31,22 +31,13 @@ jobs:
           echo "published=true" >> "$GITHUB_OUTPUT"
         env:
           GH_TOKEN: ${{ github.token }}
-      - uses: actions/setup-node@v7
-        if: steps.listings.outputs.published == 'true'
-        with:
-          node-version-file: site/.nvmrc
-          cache: npm
-          cache-dependency-path: site/package-lock.json
-      - run: npm ci
-        if: steps.listings.outputs.published == 'true'
-        working-directory: site
       # Every chain's file, exported as the compressed JSON document the site downloads.
-      - run: npm run listings
+      - name: Build the site in Docker
         if: steps.listings.outputs.published == 'true'
-        working-directory: site
-      - run: npm run build
-        if: steps.listings.outputs.published == 'true'
-        working-directory: site
+        run: |
+          docker run --rm -v "$PWD:/work" -w /work/site \
+            --mount type=volume,target=/work/site/node_modules,volume-nocopy \
+            node:26-bookworm-slim sh -c 'npm ci && npm run listings && npm run build'
       - uses: actions/configure-pages@v6
         if: steps.listings.outputs.published == 'true'
       - uses: actions/upload-pages-artifact@v5

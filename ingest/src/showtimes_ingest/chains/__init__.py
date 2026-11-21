@@ -12,6 +12,41 @@ The site's export reads each file through the chain's other half,
 site/src/chains/<name>.ts, which names its tags, towns and booking link.
 """
 
-from showtimes_ingest.chains import odeon
+from showtimes_ingest.chains import (
+    actone,
+    cineworld,
+    curzon,
+    everyman,
+    lexi,
+    light,
+    odeon,
+    olympic,
+    phoenix,
+    picturehouse,
+    princecharles,
+    reel,
+    rio,
+    showcase,
+    vue,
+)
 
-CHAINS = {chain.NAME: chain for chain in (odeon,)}
+CHAINS = {
+    chain.NAME: chain
+    for chain in (
+        odeon,
+        cineworld,
+        curzon,
+        everyman,
+        showcase,
+        vue,
+        picturehouse,
+        light,
+        olympic,
+        reel,
+        princecharles,
+        rio,
+        actone,
+        lexi,
+        phoenix,
+    )
+}

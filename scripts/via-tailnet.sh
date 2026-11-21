@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
-# Run a command with its ODEON traffic sent through an exit node on the owner's
-# tailnet: ODEON refuses cloud providers' addresses, GitHub's runners included.
+# Run a command with its browser's traffic sent through an exit node on the owner's
+# tailnet: ODEON refuses cloud providers' addresses, GitHub's runners included, and
+# the other chains read through a browser go the same way. ODEON's capture reads
+# ODEON_PROXY; showtimes_ingest.browser reads SHOWTIMES_PROXY.
 # Without TAILSCALE_EXIT_NODE the command runs as is.
 #
 # Needs: TAILSCALE_EXIT_NODE (the device's name) and TAILSCALE_STATE (the
@@ -36,6 +38,6 @@ fi
 status=0
 # SOCKS, not an HTTP proxy: through an HTTP proxy the browser falls back to
 # HTTP/1.1, which it never uses on a direct connection.
-ODEON_PROXY=socks5://127.0.0.1:1055 "$@" || status=$?
+ODEON_PROXY=socks5://127.0.0.1:1055 SHOWTIMES_PROXY=socks5://127.0.0.1:1055 "$@" || status=$?
 "$work/tailscale" --socket="$socket" down || true
 exit "$status"

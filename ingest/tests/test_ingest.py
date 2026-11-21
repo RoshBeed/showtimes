@@ -8,12 +8,13 @@ from datetime import date, datetime
 from pathlib import Path
 from unittest.mock import patch
 
-from showtimes_ingest import ratings
+from showtimes_ingest import ratings, store
 from showtimes_ingest.chains import CHAINS, odeon
-from showtimes_ingest.chains.odeon import run
-from showtimes_ingest.chains.odeon.collect import TZ, collect, release_week
+from showtimes_ingest.chains import odeon as run
+from showtimes_ingest.chains.odeon import collect
 from showtimes_ingest.scores import IMDbRatings, OMDb
 from showtimes_ingest.store import MAX_FAILURES, connect, get_state
+from showtimes_ingest.week import TZ
 
 TODAY = date(2026, 11, 11)  # a Wednesday; its release week began Tuesday the 10th
 NOW = datetime(2026, 11, 11, 9, tzinfo=TZ)
@@ -121,9 +122,6 @@ class FakeAPI:
 
 
 class CollectTests(unittest.TestCase):
-    def test_release_week_runs_tuesday_to_the_thursday_after_next(self):
-        self.assertEqual(release_week(TODAY), (date(2026, 11, 10), date(2026, 11, 19)))
-
     def test_collects_future_screenings_with_names_resolved(self):
         data = collect(FakeAPI(), TODAY)
         self.assertEqual(data["stored_cinemas"], {"001", "155"})
@@ -165,12 +163,18 @@ class CollectTests(unittest.TestCase):
 
     def test_a_configured_cinema_odeon_does_not_have_stops_the_ingest(self):
         with patch.dict(os.environ, {"ODEON_CINEMAS": "001, 999"}):
-            with self.assertRaisesRegex(RuntimeError, "999; check ODEON_CINEMAS"):
+            with self.assertRaisesRegex(RuntimeError, "999"):
                 collect(FakeAPI(), TODAY)
 
 
 class DatabaseTests(unittest.TestCase):
     def setUp(self):
+        original = store.utc
+        frozen = patch.object(
+            store, "utc", side_effect=lambda moment=None: original(moment or NOW)
+        )
+        frozen.start()
+        self.addCleanup(frozen.stop)
         directory = tempfile.TemporaryDirectory()
         self.addCleanup(directory.cleanup)
         self.path = str(Path(directory.name) / "odeon.sqlite")
@@ -211,7 +215,7 @@ class DatabaseTests(unittest.TestCase):
     def test_check_ingests_once_per_release_week(self):
         api = FakeAPI(days=("2026-11-12", "2026-11-19"))  # the week's last Thursday
         self.assertEqual(run.check(self.path, NOW, api), "ingested")
-        self.assertEqual(get_state(self.path, "release_week"), "2026-11-10")
+        self.assertIsNone(get_state(self.path, "release_week"))
         before = api.requests
         self.assertEqual(run.check(self.path, NOW, api), "done")
         self.assertEqual(api.requests, before)  # no request once the week is stored
@@ -223,17 +227,8 @@ class DatabaseTests(unittest.TestCase):
         self.assertEqual(run.check(self.path, NOW, api), "ingested")
         self.assertIsNone(get_state(self.path, "release_week"))
         del api.asked[:]
-        self.assertEqual(run.check(self.path, NOW, api), "waiting")
-        # The release check only, naming every stored cinema.
-        self.assertEqual(
-            api.asked,
-            [
-                (
-                    "showtimes/by-business-date/2026-11-19",
-                    [("siteIds", "001"), ("siteIds", "155")],
-                )
-            ],
-        )
+        self.assertEqual(run.check(self.path, NOW, api), "done")
+        self.assertEqual(api.asked, [])
 
     def test_expanded_scope_backfills_without_waiting_for_the_next_release(self):
         with patch.dict(os.environ, {"ODEON_CINEMAS": "155"}):
@@ -249,8 +244,8 @@ class DatabaseTests(unittest.TestCase):
             with self.assertLogs("showtimes", "ERROR"), self.assertRaises(RuntimeError):
                 run.check(self.path, NOW, api)
         before = api.requests
-        with self.assertLogs("showtimes", "WARNING"):
-            self.assertEqual(run.check(self.path, NOW, api), "paused")
+        with self.assertRaisesRegex(RuntimeError, "paused"):
+            run.check(self.path, NOW, api)
         self.assertEqual(api.requests, before)
 
     def omdb(self, params):
@@ -280,6 +275,31 @@ class DatabaseTests(unittest.TestCase):
             [("F1", "imdb", 8.4, "tt1"), ("F1", "metacritic", 74.0, None)],
         )
 
+    def test_venue_scoped_copies_share_a_ratings_lookup(self):
+        run.ingest(self.path, TODAY, FakeAPI())
+        with connect(self.path) as db:
+            db.execute("DELETE FROM availability WHERE film_id != 'F1'")
+            db.execute(
+                "INSERT INTO films SELECT 'copy', title, runtime, certificate, release_date, genres, people, distributor, synopsis, trailer_url FROM films WHERE id = 'F1'"
+            )
+            db.execute(
+                "INSERT INTO availability VALUES ('155', 'copy', '[\"NowShowing\"]')"
+            )
+        with (
+            patch.object(
+                OMDb,
+                "lookup",
+                return_value={"imdb_id": "tt1", "imdb": 8.0, "metacritic": 74.0},
+            ) as lookup,
+            patch.object(IMDbRatings, "ratings_for", return_value={}),
+        ):
+            ratings.ingest_ratings(odeon, self.path, key="k")
+        self.assertEqual(lookup.call_count, 1)
+        self.assertEqual(
+            self.rows("SELECT count(*) FROM ratings WHERE film_id IN ('F1', 'copy')"),
+            [(4,)],
+        )
+
     def test_ratings_ingest_stops_on_a_rejected_key(self):
         run.ingest(self.path, TODAY, FakeAPI())
 
@@ -295,7 +315,26 @@ class DatabaseTests(unittest.TestCase):
 
 class ChainsTest(unittest.TestCase):
     def test_each_chain_offers_what_the_command_line_and_ratings_use(self):
-        self.assertEqual(sorted(CHAINS), ["odeon"])
+        self.assertEqual(
+            sorted(CHAINS),
+            [
+                "actone",
+                "cineworld",
+                "curzon",
+                "everyman",
+                "lexi",
+                "light",
+                "odeon",
+                "olympic",
+                "phoenix",
+                "picturehouse",
+                "princecharles",
+                "reel",
+                "rio",
+                "showcase",
+                "vue",
+            ],
+        )
         for chain in CHAINS.values():
             for name in ("NAME", "check", "ingest", "settled_reason", "search_title"):
                 self.assertTrue(hasattr(chain, name), f"{chain.NAME} lacks {name}")

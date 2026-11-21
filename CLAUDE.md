@@ -1,6 +1,7 @@
 # Agent notes
 
-- A cinema listings finder for any chain; ODEON is the first. Two parts: `ingest/` (Python, uv)
+- A cinema listings finder with 15 provider modules, including ODEON, Vue, Everyman,
+  Picturehouse, Showcase, Cineworld, Curzon and London independents. Two parts: `ingest/` (Python, uv)
   fetches each chain into its own SQLite file (`data/<chain>.sqlite`); `site/` (Vite, TypeScript,
   no UI framework) is a static page that holds the listings in memory. Its build
   (`npm run listings`) exports every chain's file into JSON documents (every cinema, and Greater
@@ -24,6 +25,22 @@
 - Each chain's file is both what the site shows and its ingest's only state between runs
   (release week, run history, screen sizes). It is published as `<chain>.sqlite.gz` on the
   `data` release, never committed.
+- Read a chain only as its own website does: plain requests that say who is asking
+  (`http.USER_AGENT`), or the site in a real browser (`browser.Browser`, ODEON's method: the site
+  sets itself up for a visitor, the ingest asks its API from inside the page). Never pass a
+  challenge or CAPTCHA: the browser stops at one. Cineworld and Curzon have working
+  public guest pages read through the pinned curl-impersonate in Docker (`guest.py`),
+  then the shared Vista collector (`chains/vista.py`); do not return to their blocked
+  Webedia/ordinary-HTTP routes. ODEON is on the same Vista collector: curl-impersonate first,
+  one fallback to a real browser (`vista_browser.py`), the user's choice on 2026-11-20.
+  Everyman and Showcase share one adapter for Webedia's boxoffice platform
+  (`chains/boxoffice.py`, `site/src/chains/boxoffice.ts`). Every chain shares the lifecycle in
+  `refresh.py` and has its own workflow (`ingest-<chain>.yml` on `ingest-provider.yml`); those
+  using the tailnet queue for it, as the tailnet identity is one device.
+- Collection is weekly, not daily (the user's decision on 2026-11-20): each chain is due once per
+  window in `policy.py` (ODEON Wednesday 21:00, Everyman Wednesday 06:00, the rest Tuesday 06:00,
+  London time), and its workflow's cron runs at that window and twice more an hour later. Keep the
+  crons and `policy.py` in step.
 - Keep every chain's traffic minimal: one ingest per published week, no retry loops, and never
   fetch per-screening live data. Tests use a fake of each chain. ODEON's traffic goes through
   the owner's tailnet (`scripts/via-tailnet.sh`); its tailnet hostname and tag are set in the
@@ -47,3 +64,26 @@
   against a small set of listings (`npm run e2e`; `PW_CHANNEL=chrome` uses an installed Chrome).
   Add one for any change to how the site is navigated.
 - Ship through a pull request and CI. The Deploy workflow publishes `main` to GitHub Pages.
+- Light (`chains/light/`) reads its public fortnight guide **and coming-soon JSON**; Olympic
+  (`chains/olympic/`) reads three Cinema Cloud HTML pages for four venues; Reel
+  (`chains/reel/`) reads public Jacro film pages. Hull, Morecambe and Quinton use
+  the shared Admit One whole-programme reader (`chains/admitone.py`), so all 16
+  Reel cinemas are stored. Prince Charles uses one `/whats-on/` page, not the
+  incomplete homepage film directory. Rio, Lexi, Phoenix and ActOne share Opus
+  `Events` JSON. Older Opus sites do not expose this same data. `chains/pages.py` is the small
+  HTML reader. The export's optional `bookingByCinema` map supports groups with
+  different ticketing hosts; `screening_links` handles external or unavailable links.
+  Old data files without that optional table still export. The ordinary booking template handles other
+  chains. Programme IDs for Light and Reel are scoped per cinema before title merging.
+- `docs/cinema-sources.md` records the source survey, including smaller chains and
+  independents, with credit to andycroll/atthemovies and its provider gems for source routes.
+  BFI Southbank gives only its first 100 results; pagination and IMAX are blocked.
+  Do not register BFI as a complete working feed based on those partial results.
+- Run application code and tests in Docker or CI; do not install or run Python,
+  uv or Node directly on the owner's Mac. Publish through the existing CI/CD path.
+- Build `ingest/Dockerfile` from the repo root: `checks` runs lint/tests; `api`
+  contains the pinned curl binary without WebKit; default `runtime` includes WebKit.
+  `bash scripts/ingest.sh <provider> run` writes the mounted data file without publishing.
+  CI and Ingest use these same containers. Vista accepts at most five cinema IDs
+  per request; collect only the cinemas advertised for each business date, with
+  no arbitrary future cutoff. Guest tokens stay in memory/stdin, never logs or files.

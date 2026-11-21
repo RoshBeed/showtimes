@@ -31,15 +31,21 @@ def ingest_ratings(chain, path=None, key=None):
                 "SELECT id, title, release_date FROM films"
                 " WHERE id IN (SELECT film_id FROM availability)"
             ).fetchall()
-        found, failed = {}, 0
+        found, failed, looked_up = {}, 0, {}
         for film_id, title, release in films:
-            try:
-                scores = omdb.lookup(chain.search_title(title), release)
-            except RuntimeError:
-                if omdb.stopped:  # bad key or quota: every further film would fail
-                    raise
-                failed += 1  # one film's lookup; already logged by OMDb.fetch
-                continue
+            title = chain.search_title(title)
+            # Venue-scoped programme IDs can describe the same film dozens of
+            # times. OMDb uses title/year; spend its quota once for that query.
+            lookup_key = (title.casefold(), release[:4] if release else None)
+            if lookup_key not in looked_up:
+                try:
+                    looked_up[lookup_key] = omdb.lookup(title, release)
+                except RuntimeError:
+                    if omdb.stopped:  # bad key or quota: every further film fails
+                        raise
+                    failed += 1
+                    looked_up[lookup_key] = None
+            scores = looked_up[lookup_key]
             if scores:
                 found[film_id] = scores
         # IMDb's own file is fresher than OMDb's copy of the IMDb score.

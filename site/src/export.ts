@@ -49,7 +49,7 @@ export function exportListings(sources: Source[], only?: Set<string>): Data {
        LEFT JOIN ratings mc ON mc.film_id = f.id AND mc.source = 'metacritic'
        ORDER BY f.id`,
     ).map(([id, title, runtime, certificate, release, genres, people, distributor, synopsis, trailer, imdb, imdbId, metacritic]): Film => ({
-      id: own(chain, id), title, runtime, certificate, release, synopsis, trailer, imdb, imdbId, metacritic,
+      id: own(chain, id), title: chain.filmTitle?.(title) ?? title, runtime, certificate, release, synopsis, trailer, imdb, imdbId, metacritic,
       distributor: chain.distributor(distributor),
       genres: (JSON.parse(genres) as string[]).map((name) => name.trim()),
       people: JSON.parse(people),
@@ -63,10 +63,22 @@ export function exportListings(sources: Source[], only?: Set<string>): Data {
     const main = group.reduce((best, film) => ((showings.get(film.id) ?? 0) > (showings.get(best.id) ?? 0) ? film : best));
     for (const film of group) {
       merged.set(film.id, main.id);
+      // Whatever the chosen listing lacks, another may have: ratings, a synopsis, the cast.
       main.imdb ??= film.imdb;
       main.imdbId ??= film.imdbId;
       main.metacritic ??= film.metacritic;
+      main.runtime ??= film.runtime;
+      main.release ??= film.release;
+      main.trailer ??= film.trailer;
+      main.certificate ||= film.certificate;
+      main.synopsis ||= film.synopsis;
+      main.distributor ||= film.distributor;
+      if (!main.genres.length) main.genres = film.genres;
+      if (!main.people.length) main.people = film.people;
     }
+    // A YouTube trailer plays in the page; another chain's video file only links out.
+    const playable = group.find((film) => film.trailer && /youtu\.?be/.test(film.trailer));
+    if (playable) main.trailer = playable.trailer;
     return main;
   });
   const film = (chain: Chain, id: string) => merged.get(own(chain, id)) ?? own(chain, id);
@@ -76,14 +88,22 @@ export function exportListings(sources: Source[], only?: Set<string>): Data {
   const availability: Data['availability'] = [];
   const screens: Data['screens'] = [];
   const tags: Record<string, TagKind> = {};
+  const bookingLinks: Record<string, string | null> = {};
   const events = new Set<string>();
   const rows: [string, unknown[]][] = [];
   for (const { chain, sqlite } of sources) {
     const state = new Map(read(sqlite, 'SELECT key, value FROM state') as unknown as [string, string][]);
+    // Old cached chain files remain readable until their next normal ingest.
+    if (read(sqlite, "SELECT name FROM sqlite_master WHERE name = 'screening_links'").length) {
+      for (const [cinema, id, url] of read(sqlite, 'SELECT cinema_id, screening_id, url FROM screening_links')) {
+        if (!only || only.has(own(chain, cinema))) bookingLinks[JSON.stringify([own(chain, cinema), id])] = url;
+      }
+    }
     chains.push({
       id: chain.id,
       name: chain.name,
       booking: chain.booking,
+      bookingByCinema: chain.bookingByCinema,
       ingested: read(sqlite, `SELECT max(finished_at) FROM runs WHERE source = '${chain.id}' AND status = 'ok'`)[0][0],
       fullUntil: chain.fullUntil(state),
     });
@@ -92,7 +112,7 @@ export function exportListings(sources: Source[], only?: Set<string>): Data {
       const parsed = Object.fromEntries(Object.entries(JSON.parse(address) as Record<string, string>).map(([part, text]) => [part, String(text).trim()]));
       cinemas.push({
         id: own(chain, id), chain: chain.id, name: chain.cinemaName(name), short: chain.short(name),
-        town: chain.town({ id, name, city: parsed.city ?? '' }), stored: Boolean(stored), address: parsed,
+        town: chain.town({ id, name, city: parsed.city ?? '', postcode: parsed.postcode }), stored: Boolean(stored), address: parsed,
       });
     }
     for (const [cinema, id] of read(sqlite, 'SELECT cinema_id, film_id FROM availability')) {
@@ -114,10 +134,11 @@ export function exportListings(sources: Source[], only?: Set<string>): Data {
       const named = raw.flatMap((tag) => {
         const reading = chain.tag(tag);
         if (!reading) return [];
-        tags[reading.label] = reading.kind;
+        // Two chains may file one name differently: the more telling kind wins over Events.
+        if (!tags[reading.label] || tags[reading.label] === 'Events') tags[reading.label] = reading.kind;
         return [reading.label];
       });
-      const seats = [...new Set((JSON.parse(seating) as string[]).map((seat) => chain.seat(seat)))];
+      const seats = [...new Set((JSON.parse(seating) as string[]).map((seat) => chain.seat(seat)).filter((seat): seat is string => seat !== null))];
       rows.push([`${startsAt} ${own(chain, cinema)} ${id}`, [
         own(chain, cinema), id, film(chain, filmId), date, startsAt, time, filmStartsAt, filmEndsAt, screen, screenId,
         [...new Set(named)], seats, soldOut,
@@ -138,6 +159,7 @@ export function exportListings(sources: Source[], only?: Set<string>): Data {
     events: [...events],
     screens,
     tags,
+    bookingLinks,
     rows: rows.map(([, row]) => row.map(number)),
     values,
   };

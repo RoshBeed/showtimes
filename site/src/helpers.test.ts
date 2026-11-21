@@ -12,7 +12,7 @@ test('a column shows the kinds of tag asked for, as the listings name them', () 
 
 const show: ShowingDetail = {
   cinemaId: 'odeon-155', id: '155-1', filmId: 'odeon-F1', date: '2026-11-12', startsAt: '2026-11-12T18:00:00Z', time: '18:00', endsAt: '2026-11-12T21:00:00Z',
-  title: 'Dune; Part, Two', cinema: 'ODEON London West End', short: 'West End', screen: 'Screen 1', capacity: 300, experiences: ['IMAX', 'Saver'],
+  title: 'Dune; Part, Two', cinema: 'ODEON London West End', short: 'West End', chain: 'odeon', screen: 'Screen 1', capacity: 300, experiences: ['IMAX', 'Saver'],
   soldOut: false, filmStartsAt: '2026-11-12T18:25:00Z', filmEndsAt: '2026-11-12T21:00:00Z', runtime: 155,
   seating: [], address: { line1: 'Leicester Square', city: 'London' },
 };
