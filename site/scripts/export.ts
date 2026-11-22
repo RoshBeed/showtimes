@@ -3,11 +3,13 @@
 //   listings.json.gz  every cinema
 //   london.json.gz    Greater London only, for visitors who tick nothing else
 //   areas.json        which cinemas are Greater London's, built into the page
+//   badge.json        the README's listings badge (src/badge.ts)
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { basename, dirname, join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { gzipSync } from 'node:zlib';
 import { CHAINS } from '../src/chains/index.ts';
+import { listingsBadge } from '../src/badge.ts';
 import { exportListings, type Source } from '../src/export.ts';
 import type { Titles } from '../src/titles.ts';
 
@@ -37,3 +39,4 @@ for (const [name, data] of [['listings', all], ['london', exportListings(sources
   console.log(`Wrote ${data.rows.length} showings to ${to}/${name}.json.gz`);
 }
 writeFileSync(`${to}/areas.json`, JSON.stringify({ 'Greater London': london }));
+writeFileSync(`${to}/badge.json`, JSON.stringify(listingsBadge(all.chains)));
