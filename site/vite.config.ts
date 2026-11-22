@@ -1,5 +1,16 @@
+import { execSync } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
 import { defineConfig } from 'vitest/config';
+
+/** The commit and branch the site is built from: GitHub Actions says, or else git does. */
+function git(args: string): string {
+  try { return execSync(`git ${args}`, { stdio: ['ignore', 'pipe', 'ignore'] }).toString().trim(); } catch { return ''; }
+}
+const version = {
+  sha: process.env.GITHUB_SHA || git('rev-parse HEAD'),
+  branch: process.env.GITHUB_REF_NAME || git('rev-parse --abbrev-ref HEAD'),
+  built: new Date().toISOString(),
+};
 
 // Greater London's cinemas, from the listings the site is built with, so that the page
 // knows which listings file a visitor needs before it downloads either.
@@ -9,7 +20,7 @@ const london: string[] = existsSync(areas) ? JSON.parse(readFileSync(areas, 'utf
 export default defineConfig({
   // Relative paths, so the site works under any GitHub Pages address.
   base: './',
-  define: { __LONDON__: JSON.stringify(london) },
+  define: { __LONDON__: JSON.stringify(london), __VERSION__: JSON.stringify(version) },
   // The browser tests in e2e/ are Playwright's, not Vitest's.
   test: { include: ['src/**/*.test.ts'] },
 });
