@@ -73,16 +73,16 @@
   against a small set of listings (`npm run e2e`; `PW_CHANNEL=chrome` uses an installed Chrome).
   Add one for any change to how the site is navigated.
 - Ship through a pull request and CI. The Deploy workflow publishes `main` to GitHub Pages
-  (showtimes.ramuk.net). Branches: `main` is production and changes only by a pull request
-  from `dev`; `dev` is integration, and every change reaches it by a pull request from its
-  own short-lived branch cut from `dev`. Never push straight to `main` or `dev`.
+  (showtimes.ramuk.net). `main` is the only long-lived branch: every change reaches it by a
+  pull request from its own short-lived branch cut from `main`; never push straight to it.
+  There is no dev deployment: work in progress is tried in the cloud environment, whose
+  running services the owner reaches over their tailnet.
 - Work runs in git worktrees: each separate task gets its own worktree on its own branch
-  cut from `dev` (a worker agent started with worktree isolation, or the session entering
+  cut from `main` (a worker agent started with worktree isolation, or the session entering
   a worktree), never in the main checkout, so tasks run side by side without touching each
   other's files. The coordinating session reviews each branch, merges it and removes the
-  worktree. Claude merges its own pull requests once CI is
-  green and there is no conflict (the owner merges nothing): feature branches into `dev`
-  with a squash, and `dev` into `main` with a merge commit, so the two keep a shared history.
+  worktree. Claude merges its own pull requests with a squash once CI is green and there
+  is no conflict (the owner merges nothing).
 - Light (`chains/light/`) reads its public fortnight guide **and coming-soon JSON**; Olympic
   (`chains/olympic/`) reads three Cinema Cloud HTML pages for four venues; Reel
   (`chains/reel/`) reads public Jacro film pages. Hull, Morecambe and Quinton use
