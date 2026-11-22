@@ -32,6 +32,8 @@ header h1 span { color: var(--dim); font-weight: 400; }
 header .open-panel { color: var(--accent); border-color: var(--accent); }
 footer { margin: 0 -16px; background: var(--panel); border-top: 1px solid var(--line); padding: 6px 16px; color: var(--dim); display: flex; gap: 16px; flex-wrap: wrap; justify-content: space-between; }
 footer kbd { color: var(--accent); font: inherit; }
+.about a { color: inherit; }
+.about a:hover { color: var(--accent); }
 
 /* Columns side by side; each gives way so that they fit, and the strip scrolls when they cannot. */
 .columns { flex: 1; min-height: 0; display: flex; overflow-x: auto; }

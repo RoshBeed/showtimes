@@ -80,7 +80,8 @@ jobs:
       - name: Build the site in Docker
         if: steps.listings.outputs.published == 'true'
         run: |
-          docker run --rm -v "$PWD:/work" -w /work/site \
+          # The commit and branch, for the version the site shows (site/src/version.ts).
+          docker run --rm -v "$PWD:/work" -w /work/site -e GITHUB_SHA -e GITHUB_REF_NAME \
             --mount type=volume,target=/work/site/node_modules,volume-nocopy \
             node:26-bookworm-slim sh -c 'npm ci && npm run listings && npm run build'
       - uses: actions/configure-pages@v6
