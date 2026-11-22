@@ -44,16 +44,17 @@
   one fallback to a real browser (`vista_browser.py`), the user's choice on 2026-11-20.
   Everyman and Showcase share one adapter for Webedia's boxoffice platform
   (`chains/boxoffice.py`, `site/src/chains/boxoffice.ts`). Every chain shares the lifecycle in
-  `refresh.py` and has its own workflow (`ingest-<chain>.yml` on `ingest-provider.yml`); those
-  using the tailnet queue for it, as the tailnet identity is one device.
+  `refresh.py` and has its own workflow (`ingest-<chain>.yml` on `ingest-provider.yml`); they
+  run side by side, the tailnet ones each as an ephemeral device `ingest-<chain>`.
 - Collection is weekly, not daily (the user's decision on 2026-11-20): each chain is due once per
   window in `policy.py` (ODEON Wednesday 21:00, Everyman Wednesday 06:00, the rest Tuesday 06:00,
   London time), and its workflow's cron runs at that window and twice more an hour later. Keep the
   crons and `policy.py` in step.
 - Keep every chain's traffic minimal: one ingest per published week, no retry loops, and never
   fetch per-screening live data. Tests use a fake of each chain. ODEON's traffic goes through
-  the owner's tailnet (`scripts/via-tailnet.sh`); its tailnet hostname and tag are set in the
-  tailnet's policy, so leave them as they are.
+  the owner's tailnet (`scripts/via-tailnet.sh`) with the auth key `TAILSCALE_AUTHKEY`, tagged
+  `tag:ingest` (generic, not ODEON's: the user's decision on 2026-11-22); that tag's rights
+  are set in the tailnet's policy, so leave them as they are.
 - There is no server and no secret in the site. The site is one finder (`site/src/main.ts`):
   columns of choices, then the showtimes, then the details. Every page the site once had is a
   column a visitor can add (`FACETS` in `queries.ts`; `q.find` counts each column with the
@@ -67,7 +68,7 @@
 - The keys are vim's and nothing else: normal mode, ex commands (`:set`, `:sort`, `:vs`, `:q`,
   `:filter`) and `/` `?` searches on the command line. `NORMAL`, `EX` and `DRAWER` in `main.ts`
   are the `:help` list and the README tables; keep them in step. The settings drawer is a buffer too.
-- This repository is public. Never commit credentials; the tailnet identity and the OMDb key are
+- This repository is public. Never commit credentials; the tailnet auth key and the OMDb key are
   GitHub Actions secrets.
 - `site/e2e/` holds Playwright tests that drive the built site by keys, clicks and scrolling
   against a small set of listings (`npm run e2e`; `PW_CHANNEL=chrome` uses an installed Chrome).
