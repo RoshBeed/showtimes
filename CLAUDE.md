@@ -106,6 +106,11 @@
   there reach the network only through the session proxy, so build `ingest/Dockerfile`
   with `showtimes-docker-build` (same arguments as `docker build`), not `docker build`.
   Publish through the existing CI/CD path.
+- Each session there joins the owner's tailnet as `showtimes-cloud` (`scripts/cloud-tailnet.sh`,
+  run by the SessionStart hook in `.claude/settings.json`), so the owner opens a dev server at
+  `http://<its tailnet IP>:<port>/`; serve on 127.0.0.1. It needs `TS_AUTHKEY` (a pre-signed,
+  reusable, ephemeral key tagged `tag:showtimes-cloud`, set by the owner in the environment's
+  settings) and does nothing without it. Never print the key or pass it as an argument.
 - Build `ingest/Dockerfile` from the repo root: `checks` runs lint/tests; `api`
   contains the pinned curl binary without WebKit; default `runtime` includes WebKit.
   `bash scripts/ingest.sh <provider> run` writes the mounted data file without publishing.
