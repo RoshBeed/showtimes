@@ -88,8 +88,14 @@
   independents, with credit to andycroll/atthemovies and its provider gems for source routes.
   BFI Southbank gives only its first 100 results; pagination and IMAX are blocked.
   Do not register BFI as a complete working feed based on those partial results.
-- Run application code and tests in Docker or CI; do not install or run Python,
-  uv or Node directly on the owner's Mac. Publish through the existing CI/CD path.
+- All work happens in Claude Code's cloud environment `showtimes`; there is no local
+  development environment, and nothing is installed or run on the owner's Mac. Its
+  setup script installs the site's packages and Playwright browser and `uv sync`s the
+  ingest, so `npm test`, `npm run build`, `npm run e2e` and the ingest's ruff and
+  `PYTHONPATH=src uv run python -m unittest discover -s tests` run directly. Containers
+  there reach the network only through the session proxy, so build `ingest/Dockerfile`
+  with `showtimes-docker-build` (same arguments as `docker build`), not `docker build`.
+  Publish through the existing CI/CD path.
 - Build `ingest/Dockerfile` from the repo root: `checks` runs lint/tests; `api`
   contains the pinned curl binary without WebKit; default `runtime` includes WebKit.
   `bash scripts/ingest.sh <provider> run` writes the mounted data file without publishing.
