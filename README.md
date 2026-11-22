@@ -2,7 +2,6 @@
 
 [![CI](https://github.com/RoshBeed/showtimes/actions/workflows/ci.yml/badge.svg)](https://github.com/RoshBeed/showtimes/actions/workflows/ci.yml)
 [![Deploy](https://github.com/RoshBeed/showtimes/actions/workflows/deploy.yml/badge.svg)](https://github.com/RoshBeed/showtimes/actions/workflows/deploy.yml)
-[![ODEON](https://github.com/RoshBeed/showtimes/actions/workflows/ingest-odeon.yml/badge.svg)](https://github.com/RoshBeed/showtimes/actions/workflows/ingest-odeon.yml)
 
 **Live site: [showtimes.ramuk.net](https://showtimes.ramuk.net)** · Greater London only:
 [showtimes.ramuk.net/?cinemas=london](https://showtimes.ramuk.net/?cinemas=london)
@@ -154,20 +153,22 @@ next build without fetching anything again.
 
 ### The chains
 
-| Chain | How its listings are read | Cinemas | Seat counts |
-| --- | --- | --- | --- |
-| ODEON | Vista's API, with the guest token its website gives a browser | about 110, UK and Ireland | yes, from seat plans, fetched once per screen |
-| Vue | its website in a real browser, then the API its pages call (`chains/vue/`) | about 90, UK and Ireland | no |
-| Everyman | Webedia's boxoffice API, plain requests (`chains/boxoffice.py`) | about 50 | no |
-| Picturehouse | its website in a real browser, keeping the listings the page itself fetches | 25 | no |
-| Showcase | the same platform and adapter as Everyman | 16 | no |
-| Cineworld | public ticketing-page guest token, then Vista's advertised dates and showtimes | 87 | no |
-| Curzon | public page-data guest token, then the shared Vista adapter | 15 | no |
-| The Light | Glitterfish fortnight guide plus all advertised coming-soon bookings | 14 | no |
-| Olympic Studios | public Cinema Cloud programme pages | 4: Barnes, Power Station, Arches and Selfridges | no |
-| Reel | Jacro film pages, plus full Admit One programmes for the three older sites | all 16 | no |
-| Prince Charles Cinema | one complete programme page, including advance bookings and sold-out showings | 1 | no |
-| Rio, Lexi, Phoenix and ActOne | shared Opus adapter; each venue's complete public programme in one page | 1 each | no |
+Each chain's badge shows its latest weekly ingest; it links to that chain's runs.
+
+| Chain | Ingest | How its listings are read | Cinemas | Seat counts |
+| --- | --- | --- | --- | --- |
+| ODEON | [![ODEON ingest](https://github.com/RoshBeed/showtimes/actions/workflows/ingest-odeon.yml/badge.svg)](https://github.com/RoshBeed/showtimes/actions/workflows/ingest-odeon.yml) | Vista's API, with the guest token its website gives a browser | about 110, UK and Ireland | yes, from seat plans, fetched once per screen |
+| Vue | [![Vue ingest](https://github.com/RoshBeed/showtimes/actions/workflows/ingest-vue.yml/badge.svg)](https://github.com/RoshBeed/showtimes/actions/workflows/ingest-vue.yml) | its website in a real browser, then the API its pages call (`chains/vue/`) | about 90, UK and Ireland | no |
+| Everyman | [![Everyman ingest](https://github.com/RoshBeed/showtimes/actions/workflows/ingest-everyman.yml/badge.svg)](https://github.com/RoshBeed/showtimes/actions/workflows/ingest-everyman.yml) | Webedia's boxoffice API, plain requests (`chains/boxoffice.py`) | about 50 | no |
+| Picturehouse | [![Picturehouse ingest](https://github.com/RoshBeed/showtimes/actions/workflows/ingest-picturehouse.yml/badge.svg)](https://github.com/RoshBeed/showtimes/actions/workflows/ingest-picturehouse.yml) | its website in a real browser, keeping the listings the page itself fetches | 25 | no |
+| Showcase | [![Showcase ingest](https://github.com/RoshBeed/showtimes/actions/workflows/ingest-showcase.yml/badge.svg)](https://github.com/RoshBeed/showtimes/actions/workflows/ingest-showcase.yml) | the same platform and adapter as Everyman | 16 | no |
+| Cineworld | [![Cineworld ingest](https://github.com/RoshBeed/showtimes/actions/workflows/ingest-cineworld.yml/badge.svg)](https://github.com/RoshBeed/showtimes/actions/workflows/ingest-cineworld.yml) | public ticketing-page guest token, then Vista's advertised dates and showtimes | 87 | no |
+| Curzon | [![Curzon ingest](https://github.com/RoshBeed/showtimes/actions/workflows/ingest-curzon.yml/badge.svg)](https://github.com/RoshBeed/showtimes/actions/workflows/ingest-curzon.yml) | public page-data guest token, then the shared Vista adapter | 15 | no |
+| The Light | [![The Light ingest](https://github.com/RoshBeed/showtimes/actions/workflows/ingest-light.yml/badge.svg)](https://github.com/RoshBeed/showtimes/actions/workflows/ingest-light.yml) | Glitterfish fortnight guide plus all advertised coming-soon bookings | 14 | no |
+| Olympic Studios | [![Olympic Studios ingest](https://github.com/RoshBeed/showtimes/actions/workflows/ingest-olympic.yml/badge.svg)](https://github.com/RoshBeed/showtimes/actions/workflows/ingest-olympic.yml) | public Cinema Cloud programme pages | 4: Barnes, Power Station, Arches and Selfridges | no |
+| Reel | [![Reel ingest](https://github.com/RoshBeed/showtimes/actions/workflows/ingest-reel.yml/badge.svg)](https://github.com/RoshBeed/showtimes/actions/workflows/ingest-reel.yml) | Jacro film pages, plus full Admit One programmes for the three older sites | all 16 | no |
+| Prince Charles Cinema | [![Prince Charles Cinema ingest](https://github.com/RoshBeed/showtimes/actions/workflows/ingest-princecharles.yml/badge.svg)](https://github.com/RoshBeed/showtimes/actions/workflows/ingest-princecharles.yml) | one complete programme page, including advance bookings and sold-out showings | 1 | no |
+| Rio, Lexi, Phoenix and ActOne | [![Rio ingest](https://github.com/RoshBeed/showtimes/actions/workflows/ingest-rio.yml/badge.svg)](https://github.com/RoshBeed/showtimes/actions/workflows/ingest-rio.yml)<br>[![Lexi ingest](https://github.com/RoshBeed/showtimes/actions/workflows/ingest-lexi.yml/badge.svg)](https://github.com/RoshBeed/showtimes/actions/workflows/ingest-lexi.yml)<br>[![Phoenix ingest](https://github.com/RoshBeed/showtimes/actions/workflows/ingest-phoenix.yml/badge.svg)](https://github.com/RoshBeed/showtimes/actions/workflows/ingest-phoenix.yml)<br>[![ActOne ingest](https://github.com/RoshBeed/showtimes/actions/workflows/ingest-actone.yml/badge.svg)](https://github.com/RoshBeed/showtimes/actions/workflows/ingest-actone.yml) | shared Opus adapter; each venue's complete public programme in one page | 1 each | no |
 
 Reading a chain "in a real browser" is ODEON's method, shared in
 `showtimes_ingest/browser.py`: headless WebKit opens the chain's website, the site
