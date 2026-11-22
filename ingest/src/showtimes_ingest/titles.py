@@ -9,7 +9,7 @@ what the rest of the title said, as tags.
 
 Decisions are kept in <folder>/titles.json, so each title is asked about once; the
 site's export reads that file. The folder holds the chains' <chain>.sqlite files.
-Needs Claude credentials when there are new titles: in the Deploy, Workload Identity
+Needs Claude credentials when there are new titles: in the Publish workflow, Workload Identity
 Federation (the ANTHROPIC_FEDERATION_* variables and an identity token file).
 """
 
@@ -176,7 +176,7 @@ def main(argv=None):
     args = sys.argv[1:] if argv is None else argv
     folder = args[0] if args else "/data"
     found = clean(folder)
-    # A list for people to check, as the Deploy run's summary shows it.
+    # A list for people to check, as the Publish run's summary shows it.
     print(f"Claude cleaned {len(found)} new titles.")
     for raw, answer in sorted(found.items()):
         tags = ", ".join(tag["label"] for tag in answer["tags"])

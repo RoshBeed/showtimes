@@ -23,13 +23,15 @@ on:
         default: false
 jobs:
   ingest:
-    name: Ingest ${{ inputs.provider }}
+    # CI's validation run only builds the image: it names no chain.
+    name: ${{ inputs.validation && 'Build ingest image' || format('Ingest {0}', inputs.provider) }}
     runs-on: ubuntu-latest
     timeout-minutes: 180
-    # The home-network identity is a single device. FIFO queueing preserves every
-    # provider's run; GitHub's default single pending slot would cancel neighbours.
+    # One run per provider at a time; providers run side by side, the tailnet ones
+    # included (each run is its own ephemeral device). FIFO queueing keeps a
+    # provider's later runs; GitHub's default single pending slot would cancel them.
     concurrency:
-      group: ${{ inputs.validation && format('ingest-validation-{0}', github.run_id) || inputs.via-tailnet && 'ingest-home-network' || format('ingest-data-{0}', inputs.provider) }}
+      group: ${{ inputs.validation && format('ingest-validation-{0}', github.run_id) || format('ingest-data-{0}', inputs.provider) }}
       queue: max
     env:
       GH_TOKEN: ${{ github.token }}
@@ -38,7 +40,7 @@ jobs:
       ODEON_CINEMAS: ${{ vars.ODEON_CINEMAS }}
       OMDB_API_KEY: ${{ secrets.OMDB_API_KEY }}
       TAILSCALE_EXIT_NODE: ${{ vars.TAILSCALE_EXIT_NODE }}
-      TAILSCALE_STATE: ${{ secrets.TAILSCALE_STATE }}
+      TAILSCALE_AUTHKEY: ${{ secrets.TAILSCALE_AUTHKEY }}
       INGEST_WORKFLOW: ${{ inputs.workflow }}
     steps:
       - uses: actions/checkout@v7

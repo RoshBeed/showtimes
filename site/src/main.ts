@@ -7,6 +7,7 @@ import { DEFAULT_COLUMNS, DEFAULT_FIELDS, expandArea, FIELDS, learnLondon, LONDO
 import { openListings } from './db';
 import * as q from './queries';
 import { certificateAge, formats } from './tags';
+import { REPO, VERSION, versionHref, versionLabel } from './version';
 
 
 let db: q.Listings;
@@ -634,7 +635,15 @@ function footer(hints: string[]): HTMLElement {
     h('span', { class: 'status' },
       `listings from ${stamp ? day(stamp) : 'no ingest yet'}`,
       ...(db.fullUntil ? [` · full to ${day(db.fullUntil)}`] : []),
-      ...(old ? [h('span', { class: 'stale' }, ' · more than a week old')] : [])));
+      ...(old ? [h('span', { class: 'stale' }, ' · more than a week old')] : []),
+      ' · ', about()));
+}
+
+/** Which version of the site this is, linked to its commit, and the repository on GitHub. */
+function about(): HTMLElement {
+  return h('span', { class: 'about' },
+    h('a', { class: 'version', href: versionHref(), title: VERSION.built ? `built ${VERSION.built}` : '' }, `version ${versionLabel()}`),
+    ' · ', h('a', { class: 'github', href: REPO }, 'GitHub'));
 }
 
 // ---- Settings: a drawer at the side, so the finder shows each change as it is made ----
@@ -891,6 +900,7 @@ help.append(
   h('h3', {}, 'Normal mode'), list(NORMAL),
   h('h3', {}, 'Commands'), list(EX),
   h('h3', {}, 'Settings'), list(DRAWER),
+  h('p', { class: 'dim' }, about()),
 );
 document.body.append(help);
 
