@@ -118,16 +118,18 @@
   CI and Ingest use these same containers. Vista accepts at most five cinema IDs
   per request; collect only the cinemas advertised for each business date, with
   no arbitrary future cutoff. Guest tokens stay in memory/stdin, never logs or files.
-- The README is for visitors only: what the site does, how to use it, and a status badge per
-  chain at the top. No development detail (that belongs here) and no key tables (`:help` has
-  them). Keep it short.
+- The README is for visitors only: what the site does and how to use it, with one listings badge
+  at the top. No development detail (that belongs here) and no keys (`:help` has them). Keep it
+  short. The badge is a shields.io endpoint, `data/badge.json` on the live site, written by the
+  export from the listings themselves (`site/src/badge.ts`): green with the fetch dates, or the
+  chains not fetched for over nine days. Workflow badges would show runs, not what the site shows.
 - Adding a chain: (1) a package `ingest/src/showtimes_ingest/chains/<chain>/` writing the
   `store.py` schema and offering what `chains/__init__.py` lists (`NAME`, `check`, `ingest`,
   `settled_reason`, `search_title`), added to `CHAINS` with tests against a fake; a chain on a
   platform another uses needs only its name and website (`chains/everyman/`). (2) A
   `site/src/chains/<chain>.ts` implementing `Chain`, added to `CHAINS` in `index.ts`. (3) An
   `ingest-<chain>.yml` on `ingest-provider.yml` at its weekly window (`browser`, `via-tailnet` as
-  needed), the chain in `ingest.yml`'s dispatcher, and its badge in the README. Check first that
+  needed), the chain in `ingest.yml`'s dispatcher. Check first that
   the chain's terms allow it.
 - Runs by hand: `ingest-<chain>.yml` or the dispatcher `ingest.yml` (`provider=all`), with
   `command=check` (ingests only if the week is not stored; contacts nobody otherwise) or `run`
