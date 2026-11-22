@@ -405,8 +405,9 @@ test('more than one chain: films shared, a Chain column, each cinema marked and 
 test('the footer and :help show which version is running, linked to its commit, and the GitHub repository', async ({ page }) => {
   await visit(page, '/');
   const about = page.locator('footer .about');
-  await expect(about.locator('a.version')).toHaveText(/^version (\S+ )?[0-9a-f]{7}$/);
-  await expect(about.locator('a.version')).toHaveAttribute('href', /^https:\/\/github\.com\/RoshBeed\/showtimes\/commit\/[0-9a-f]{40}$/);
+  // A commit when the build knows it (Deploy, or a git checkout); CI's site check builds without one.
+  await expect(about.locator('a.version')).toHaveText(/^version ((\S+ )?[0-9a-f]{7}|local build)$/);
+  await expect(about.locator('a.version')).toHaveAttribute('href', /^https:\/\/github\.com\/RoshBeed\/showtimes(\/commit\/[0-9a-f]{40})?$/);
   await expect(about.locator('a.github')).toHaveAttribute('href', 'https://github.com/RoshBeed/showtimes');
   await ex(page, 'help');
   await expect(page.locator('dialog.keylist .about a.version')).toHaveText(await about.locator('a.version').innerText());
