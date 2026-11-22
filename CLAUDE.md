@@ -67,7 +67,7 @@
   Film, over every cinema. On a phone one column shows at a time.
 - The keys are vim's and nothing else: normal mode, ex commands (`:set`, `:sort`, `:vs`, `:q`,
   `:filter`) and `/` `?` searches on the command line. `NORMAL`, `EX` and `DRAWER` in `main.ts`
-  are the `:help` list and the README tables; keep them in step. The settings drawer is a buffer too.
+  are the `:help` list; keep it in step with the keys. The settings drawer is a buffer too.
 - This repository is public. Never commit credentials; the tailnet auth key and the OMDb key are
   GitHub Actions secrets.
 - `site/e2e/` holds Playwright tests that drive the built site by keys, clicks and scrolling
@@ -118,3 +118,25 @@
   CI and Ingest use these same containers. Vista accepts at most five cinema IDs
   per request; collect only the cinemas advertised for each business date, with
   no arbitrary future cutoff. Guest tokens stay in memory/stdin, never logs or files.
+- The README is for visitors only: what the site does, how to use it, and a status badge per
+  chain at the top. No development detail (that belongs here) and no key tables (`:help` has
+  them). Keep it short.
+- Adding a chain: (1) a package `ingest/src/showtimes_ingest/chains/<chain>/` writing the
+  `store.py` schema and offering what `chains/__init__.py` lists (`NAME`, `check`, `ingest`,
+  `settled_reason`, `search_title`), added to `CHAINS` with tests against a fake; a chain on a
+  platform another uses needs only its name and website (`chains/everyman/`). (2) A
+  `site/src/chains/<chain>.ts` implementing `Chain`, added to `CHAINS` in `index.ts`. (3) An
+  `ingest-<chain>.yml` on `ingest-provider.yml` at its weekly window (`browser`, `via-tailnet` as
+  needed), the chain in `ingest.yml`'s dispatcher, and its badge in the README. Check first that
+  the chain's terms allow it.
+- Runs by hand: `ingest-<chain>.yml` or the dispatcher `ingest.yml` (`provider=all`), with
+  `command=check` (ingests only if the week is not stored; contacts nobody otherwise) or `run`
+  (ingests now: only when needed, as it adds to the chain's traffic). A failure is recorded in the
+  chain's file and retried at the next check, at most three times a week. The site needs the
+  listings to show anything: `scripts/listings.sh download` (uses `gh`; in the cloud environment,
+  where `gh` is search-only, `curl -L` each asset from
+  `https://github.com/RoshBeed/showtimes/releases/download/data/`).
+- Repository settings: secrets `TAILSCALE_AUTHKEY` and `OMDB_API_KEY` (optional, IMDb and
+  Metacritic scores); variables `TAILSCALE_EXIT_NODE`, `ODEON_CINEMAS` (optional, comma-separated
+  site IDs; empty is every cinema), and `ODEON_INGEST`, `CHAINS_INGEST` (every other chain) or
+  `<CHAIN>_INGEST` set to `false` to pause schedules.
