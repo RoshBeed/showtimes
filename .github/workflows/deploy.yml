@@ -1,4 +1,4 @@
-name: Deploy
+name: Publish site and listings
 # Builds the site with the published listings inside it and puts it on GitHub Pages.
 on:
   push:
@@ -36,7 +36,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
       # Claude cleans the titles it has not seen before (ingest/src/showtimes_ingest/titles.py);
-      # Deploys run one at a time, so only one run writes titles.json.
+      # Publish runs go one at a time, so only one run writes titles.json.
       # No API key: the job's GitHub identity token is exchanged for a short-lived Anthropic one
       # under the account's federation rule. The SDK reads the token file at each exchange, so a
       # fresh token is written every four minutes for as long as Claude runs.

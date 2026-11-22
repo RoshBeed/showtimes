@@ -25,9 +25,17 @@ socket=$work/tailscaled.sock
   --socks5-server=127.0.0.1:1055 >"$work/tailscaled.log" 2>&1 &
 # The key goes in on stdin, never in arguments or logs. The exit node is chosen
 # after connecting; its name cannot be resolved before.
-if ! "$work/tailscale" --socket="$socket" up --timeout=60s --auth-key=file:/dev/stdin \
-  --hostname="ingest-${CHAIN:-run}" --advertise-tags=tag:ingest <<<"$TAILSCALE_AUTHKEY" ||
-  ! "$work/tailscale" --socket="$socket" set --exit-node="$TAILSCALE_EXIT_NODE"; then
+joined=0
+"$work/tailscale" --socket="$socket" up --timeout=60s --auth-key=file:/dev/stdin \
+  --hostname="ingest-${CHAIN:-run}" --advertise-tags=tag:ingest <<<"$TAILSCALE_AUTHKEY" \
+  2>"$work/up.log" || joined=$?
+cat "$work/up.log" >&2
+# Tailnet Lock lets an unsigned device join but gives it no connectivity; up still succeeds.
+if grep -q "locked out" "$work/up.log"; then
+  echo "TAILSCALE_AUTHKEY is not signed for Tailnet Lock: store what 'tailscale lock sign <key>' prints" >&2
+  exit 1
+fi
+if [ "$joined" != 0 ] || ! "$work/tailscale" --socket="$socket" set --exit-node="$TAILSCALE_EXIT_NODE"; then
   echo "Could not join the tailnet or use exit node $TAILSCALE_EXIT_NODE" >&2
   tail -20 "$work/tailscaled.log" >&2
   exit 1

@@ -18,13 +18,13 @@
   Irish editions, or by two chains) are merged when their titles match apart from case and
   punctuation, into the listing with the most showings. Titles are cleaned first by Claude, not by
   hand-written rules (the user's decision, 2026-11-21): `showtimes-titles`
-  (`ingest/src/showtimes_ingest/titles.py`, Claude Opus 5.5) runs in each Deploy, asks only about
+  (`ingest/src/showtimes_ingest/titles.py`, Claude Opus 5.5) runs in each Publish run (`deploy.yml`), asks only about
   titles it has not seen, and keeps its decisions in `titles.json` on the data release. Each
   decision is the film's own name, the year the title gives (remakes stay apart), and tags for what
   the rest said (format, language, festival or series, screening type, add-ons). The export reads
-  them; `site/src/titles.overrides.json` corrects a wrong decision. Each Deploy summary lists what
+  them; `site/src/titles.overrides.json` corrects a wrong decision. Each Publish summary lists what
   Claude decided. Deleting an entry from `titles.json` makes Claude decide it again. It signs in
-  through Workload Identity Federation from the Deploy job's GitHub OIDC token (no API key; the
+  through Workload Identity Federation from the Publish job's GitHub OIDC token (no API key; the
   rule, organization, service account and workspace IDs are in `deploy.yml`).
 - The schema lives in `ingest/src/showtimes_ingest/store.py`. The site's tests read it from
   there, so change the schema and `site/src/export.ts` together. `site/src/queries.ts` answers
@@ -73,7 +73,7 @@
 - `site/e2e/` holds Playwright tests that drive the built site by keys, clicks and scrolling
   against a small set of listings (`npm run e2e`; `PW_CHANNEL=chrome` uses an installed Chrome).
   Add one for any change to how the site is navigated.
-- Ship through a pull request and CI. The Deploy workflow publishes `main` to GitHub Pages
+- Ship through a pull request and CI. The Publish workflow (`deploy.yml`, "Publish site and listings") publishes `main` and the latest listings to GitHub Pages
   (showtimes.ramuk.net). `main` is the only long-lived branch: every change reaches it by a
   pull request from its own short-lived branch cut from `main`; never push straight to it.
   There is no dev deployment: work in progress is tried in the cloud environment, whose
