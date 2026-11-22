@@ -18,6 +18,7 @@ dist/
 *.sqlite-*
 *.sqlite.gz
 site/public/data/
+/data/
 
 # Browser test output
 test-results/
