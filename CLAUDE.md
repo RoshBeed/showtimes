@@ -76,9 +76,11 @@
   (showtimes.ramuk.net). Branches: `main` is production and changes only by a pull request
   from `dev`; `dev` is integration, and every change reaches it by a pull request from its
   own short-lived branch cut from `dev`. Never push straight to `main` or `dev`.
-- Work runs on workers: each separate task gets its own Claude worker (a subagent or a
-  separate cloud session on the `showtimes` environment) on its own branch, and the
-  coordinating session reviews and merges. Claude merges its own pull requests once CI is
+- Work runs in git worktrees: each separate task gets its own worktree on its own branch
+  cut from `dev` (a worker agent started with worktree isolation, or the session entering
+  a worktree), never in the main checkout, so tasks run side by side without touching each
+  other's files. The coordinating session reviews each branch, merges it and removes the
+  worktree. Claude merges its own pull requests once CI is
   green and there is no conflict (the owner merges nothing): feature branches into `dev`
   with a squash, and `dev` into `main` with a merge commit, so the two keep a shared history.
 - Light (`chains/light/`) reads its public fortnight guide **and coming-soon JSON**; Olympic
