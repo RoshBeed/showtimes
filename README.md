@@ -199,8 +199,9 @@ ODEON now shares the Vista collector with Cineworld and Curzon: its guest token 
 read by curl-impersonate first, with a real browser as the one fallback if that
 fails. ODEON refuses requests from cloud providers' addresses, GitHub's runners
 included, so its traffic goes through a Tailscale exit node on a home network
-(`scripts/via-tailnet.sh`), as do Vue's, Picturehouse's, Cineworld's and Curzon's.
-The tailnet identity is one device, so those workflows queue for it in turn.
+(`scripts/via-tailnet.sh`), as do Vue's, Picturehouse's and Curzon's. Each run joins
+the tailnet as its own ephemeral device, `ingest-<chain>`, so those workflows run
+side by side.
 
 BFI Southbank's first programme page opens in a browser, but subsequent pages and BFI IMAX return
 challenges, so a complete BFI feed is not available yet. See the
@@ -238,7 +239,7 @@ retry loops.
 
 | Kind | Name | Purpose |
 | --- | --- | --- |
-| Secret | `TAILSCALE_STATE` | The runner's permanent identity on the tailnet (base64 of a tailscaled state file) |
+| Secret | `TAILSCALE_AUTHKEY` | Reusable, ephemeral auth key tagged `tag:ingest`, pre-signed for Tailnet Lock |
 | Secret | `OMDB_API_KEY` | Optional. Enables IMDb and Metacritic scores |
 | Variable | `TAILSCALE_EXIT_NODE` | Name of the exit node device |
 | Variable | `ODEON_CINEMAS` | Optional. ODEON site IDs to store, comma-separated; empty stores every cinema |
