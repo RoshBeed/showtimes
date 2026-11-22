@@ -23,7 +23,8 @@ on:
         default: false
 jobs:
   ingest:
-    name: Ingest ${{ inputs.provider }}
+    # CI's validation run only builds the image: it names no chain.
+    name: ${{ inputs.validation && 'Build ingest image' || format('Ingest {0}', inputs.provider) }}
     runs-on: ubuntu-latest
     timeout-minutes: 180
     # The home-network identity is a single device. FIFO queueing preserves every
