@@ -56,16 +56,8 @@ jobs:
         id: ingest
         env:
           VIA: ${{ inputs.via-tailnet && format('{0}/scripts/via-tailnet.sh', github.workspace) || '' }}
-        run: |
-          set -o pipefail
-          bash scripts/ingest-chain.sh "$CHAIN" "$COMMAND" | tee "$RUNNER_TEMP/result"
-      - name: Build the published site through its own workflow
-        # Failure records are published too, so status remains visible with old data.
-        if: ${{ always() && !inputs.validation }}
-        run: |
-          if [ -f "$RUNNER_TEMP/result" ] && grep -q '^changed=true$' "$RUNNER_TEMP/result"; then
-            gh workflow run deploy.yml --ref main
-          fi
+        # The file is published to the data release; the scheduled Publish run builds it into the site.
+        run: bash scripts/ingest-chain.sh "$CHAIN" "$COMMAND"
       - name: Keep this provider's schedule enabled
         if: ${{ always() && !inputs.validation }}
         run: gh workflow enable "$INGEST_WORKFLOW"

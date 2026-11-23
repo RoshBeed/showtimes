@@ -8,7 +8,7 @@ const DAY = 24 * 60 * 60 * 1000;
 
 const day = (iso: string) => new Date(iso).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', timeZone: 'Europe/London' });
 
-export function listingsBadge(chains: Data['chains'], now = new Date()) {
+export function listingsBadge(chains: Data['chains'], cinemas: number, now = new Date()) {
   const stale = chains.filter((chain) => !chain.ingested || now.getTime() - Date.parse(chain.ingested) > STALE_DAYS * DAY);
   if (stale.length) {
     return {
@@ -23,7 +23,7 @@ export function listingsBadge(chains: Data['chains'], now = new Date()) {
   return {
     schemaVersion: 1,
     label: 'listings',
-    message: `${chains.length} chains, fetched ${first === last ? first : `${first} – ${last}`}`,
+    message: `${cinemas} cinemas, updated ${first === last ? first : `${first} – ${last}`}`,
     color: 'brightgreen',
   };
 }

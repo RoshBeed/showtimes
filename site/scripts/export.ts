@@ -39,4 +39,4 @@ for (const [name, data] of [['listings', all], ['london', exportListings(sources
   console.log(`Wrote ${data.rows.length} showings to ${to}/${name}.json.gz`);
 }
 writeFileSync(`${to}/areas.json`, JSON.stringify({ 'Greater London': london }));
-writeFileSync(`${to}/badge.json`, JSON.stringify(listingsBadge(all.chains)));
+writeFileSync(`${to}/badge.json`, JSON.stringify(listingsBadge(all.chains, all.cinemas.length)));

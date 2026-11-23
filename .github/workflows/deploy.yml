@@ -1,11 +1,17 @@
 name: Publish site and listings
-# Builds the site with the published listings inside it and puts it on GitHub Pages.
+# Builds the site with the published listings inside it and puts it on GitHub Pages: the listings
+# are files beside the page, so publishing them publishes the site. Ingests do not start it; it
+# runs once after each weekly window instead, so a batch of ingests is one run, never a queue of
+# cancelled ones. After a manual ingest, run it by hand.
 on:
   push:
     branches: [main]
   workflow_dispatch:
-  # The Ingest workflow, after it publishes new listings.
-  workflow_call:
+  # UTC, after the last hourly retry of each window in policy.py (Tuesday's chains and
+  # Everyman's by 09:00, ODEON's evening window by 02:00 Thursday, allowing for a long run).
+  schedule:
+    - cron: "41 9 * * 2,3"
+    - cron: "41 2 * * 4"
 concurrency:
   group: pages
   cancel-in-progress: false
