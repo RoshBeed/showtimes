@@ -1,11 +1,18 @@
 name: Publish site and listings
-# Builds the site with the published listings inside it and puts it on GitHub Pages.
+# Builds the site with the published listings inside it and puts it on GitHub Pages: the listings
+# are files beside the page, so publishing them publishes the site. It runs on a push to main,
+# by hand, and as the last stage of the Listings workflow, after that run's ingests, whose
+# changed files it writes to the data release: the release's only writer.
 on:
   push:
     branches: [main]
   workflow_dispatch:
-  # The Ingest workflow, after it publishes new listings.
   workflow_call:
+    inputs:
+      chains:
+        description: The calling run's ingests left their changed files as artifacts named chain-<chain>
+        type: boolean
+        default: false
 concurrency:
   group: pages
   cancel-in-progress: false
@@ -14,9 +21,11 @@ permissions:
   pages: write
   id-token: write
 jobs:
-  # Built and deployed in two jobs, as GitHub's own Pages workflow does: a deploy in the same job
-  # as its upload sometimes looked for the artifact before GitHub listed it ("Found 0 artifact(s)").
-  build:
+  # Three jobs: Claude cleans the titles across every chain's listings, then the site is built from
+  # the listings and those titles, then it is deployed. Only the titles job may sign in to Claude or
+  # write to the data release. Build and deploy are apart as in GitHub's own Pages workflow: a
+  # deploy in the same job as its upload sometimes looked for the artifact before GitHub listed it.
+  titles:
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     permissions:
@@ -27,19 +36,39 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - name: Fetch the listings the site carries
+        run: bash scripts/listings.sh download
+        env:
+          GH_TOKEN: ${{ github.token }}
+      - name: Take this run's ingested files
+        if: inputs.chains
+        uses: actions/download-artifact@v5
+        with:
+          pattern: chain-*
+          merge-multiple: true
+          path: ingested
+      - name: Publish them on the data release
         id: listings
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
-          bash scripts/listings.sh download
+          for file in ingested/*.sqlite; do
+            [ -e "$file" ] || continue
+            mv "$file" data/
+            bash scripts/listings.sh upload "$(basename "$file" .sqlite)"
+          done
           # Until an ingest publishes listings there is nothing to show.
           if ! ls data/*.sqlite >/dev/null 2>&1; then exit 0; fi
           echo "published=true" >> "$GITHUB_OUTPUT"
-        env:
-          GH_TOKEN: ${{ github.token }}
       # Claude cleans the titles it has not seen before (ingest/src/showtimes_ingest/titles.py);
       # Publish runs go one at a time, so only one run writes titles.json.
       # No API key: the job's GitHub identity token is exchanged for a short-lived Anthropic one
       # under the account's federation rule. The SDK reads the token file at each exchange, so a
       # fresh token is written every four minutes for as long as Claude runs.
+      - name: Build the ingest container
+        if: steps.listings.outputs.published == 'true'
+        uses: ./.github/actions/ingest-image
+        with:
+          target: api
       - name: Clean new film titles with Claude
         if: steps.listings.outputs.published == 'true'
         env:
@@ -49,7 +78,6 @@ jobs:
           ANTHROPIC_SERVICE_ACCOUNT_ID: svac_013U29rWXbxzfDi7WLqJPDPw
           ANTHROPIC_WORKSPACE_ID: wrkspc_01FdaqMPTvrKhtpGjXhoC28v
         run: |
-          docker build --target api -f ingest/Dockerfile -t showtimes-ingest .
           oidc="$RUNNER_TEMP/oidc"
           mkdir -p "$oidc"
           identity() {
@@ -76,23 +104,33 @@ jobs:
             bash scripts/listings.sh upload-titles
           fi
           exit "$status"
+  build:
+    needs: titles
+    if: needs.titles.outputs.published == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pages: read
+    steps:
+      - uses: actions/checkout@v7
+      - name: Fetch the listings and the titles Claude decided
+        run: |
+          bash scripts/listings.sh download
+        env:
+          GH_TOKEN: ${{ github.token }}
       # Every chain's file, exported as the compressed JSON document the site downloads.
       - name: Build the site in Docker
-        if: steps.listings.outputs.published == 'true'
         run: |
           # The commit and branch, for the version the site shows (site/src/version.ts).
           docker run --rm -v "$PWD:/work" -w /work/site -e GITHUB_SHA -e GITHUB_REF_NAME \
             --mount type=volume,target=/work/site/node_modules,volume-nocopy \
             node:26-bookworm-slim sh -c 'npm ci && npm run listings && npm run build'
       - uses: actions/configure-pages@v6
-        if: steps.listings.outputs.published == 'true'
       - uses: actions/upload-pages-artifact@v5
-        if: steps.listings.outputs.published == 'true'
         with:
           path: site/dist
   deploy:
     needs: build
-    if: needs.build.outputs.published == 'true'
     runs-on: ubuntu-latest
     environment:
       name: github-pages

@@ -56,9 +56,19 @@ test('keys choose in each column, each counts what the others leave, and the add
   await page.keyboard.press('g');
   await page.keyboard.press('g'); // the first line: All
   await expect(total(page)).toHaveText('3');
-  await page.locator('header h1 a').click(); // the default view, which needs nothing after the address
+  await page.locator('footer .name a').click(); // the default view, which needs nothing after the address
   await expect(titles(page)).toHaveText(['Chain', 'Cinema', 'Film', 'Showtimes', /./]);
   await expect(page).toHaveURL(/\/$/);
+});
+
+test('there is no header: the footer names the site and opens the settings, on one line', async ({ page }) => {
+  await visit(page, '/');
+  await expect(page.locator('header')).toHaveCount(0);
+  const footer = page.locator('footer');
+  // One line of text and its padding, as before the settings moved in (33px).
+  expect((await footer.boundingBox())!.height).toBeLessThan(40);
+  await footer.locator('.open-panel').click();
+  await expect(page.getByRole('dialog', { name: 'Settings' })).toBeVisible();
 });
 
 test('vim keys move between and through the columns', async ({ page }) => {
@@ -301,7 +311,7 @@ test('the showtimes are headed, a heading orders them, and the settings choose w
   await expect(heads).toHaveText(/Day.*Seats ▲/); // out of date order, each row says its day
   await heads.getByRole('button', { name: /Order by seats/ }).click();
   await expect(page).toHaveURL(/sort=seats&desc=1/);
-  await page.locator('header .open-panel').click();
+  await page.locator('footer .open-panel').click();
   const panel = page.locator('dialog.panel');
   await panel.locator('[data-key="field-ends"]').check();
   await panel.locator('[data-key="field-picture"]').uncheck();
@@ -313,7 +323,7 @@ test('the showtimes are headed, a heading orders them, and the settings choose w
 
 test('London only, at the top of the settings, is ?cinemas=london and loads only its listings', async ({ page }) => {
   await visit(page, '/');
-  await page.locator('header .open-panel').click();
+  await page.locator('footer .open-panel').click();
   const london = page.locator('dialog.panel').getByLabel(/London only/);
   await london.check();
   await expect(page).toHaveURL(/\?cinemas=london$/);
@@ -328,9 +338,9 @@ test('London only, at the top of the settings, is ?cinemas=london and loads only
   await expect(page).not.toHaveURL(/cinemas=/);
   await expect(choices(page, 'Cinema')).toHaveText([/^All/, /^Aberdeen/, /^Holloway/, /^West End/]);
   expect(fetched).toEqual(['london.json.gz', 'listings.json.gz']); // every cinema, fetched once needed
-  await page.locator('header .open-panel').click();
+  await page.locator('footer .open-panel').click();
   await expect(london).not.toBeChecked();
-  await expect(page.locator('header .open-panel')).toHaveText('Settings');
+  await expect(page.locator('footer .open-panel')).toHaveText('Settings');
 });
 
 test('event cinema and single cinemas are chosen in the settings', async ({ page }) => {
@@ -355,9 +365,12 @@ test('a phone shows one column at a time, and a choice moves on to the next', as
   await page.setViewportSize({ width: 375, height: 812 }); // an iPhone 13 mini
   await visit(page, '/');
   await expect(page.locator('.column:visible .bar h2')).toHaveText('Chain');
-  // The header is one line, and there is no footer.
-  expect((await page.locator('header').boundingBox())!.height).toBeLessThan(50);
+  // One row of buttons at the top, the steps then the settings, and no footer.
+  expect((await page.locator('.topbar').boundingBox())!.height).toBeLessThan(60);
   await expect(page.locator('footer')).toBeHidden();
+  await page.locator('.topbar .open-panel').click();
+  await expect(page.getByRole('dialog', { name: 'Settings' })).toBeVisible();
+  await page.keyboard.press('Escape');
   // Nothing in a column is wider than the screen, so it cannot be dragged sideways.
   const wider = () => page.locator('.column:visible').evaluate((column) => column.scrollWidth - column.clientWidth);
   await expect.poll(wider).toBe(0);

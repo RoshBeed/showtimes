@@ -1,0 +1,19 @@
+# Weekly dependency updates, one grouped pull request per ecosystem; each goes through CI like
+# any other change and is merged by a squash once it is green.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule: { interval: weekly, day: monday }
+    groups: { actions: { patterns: ["*"] } }
+  - package-ecosystem: npm
+    directory: /site
+    schedule: { interval: weekly, day: monday }
+    groups: { site: { patterns: ["*"] } }
+  - package-ecosystem: uv
+    directory: /ingest
+    schedule: { interval: weekly, day: monday }
+    groups: { ingest: { patterns: ["*"] } }
+  - package-ecosystem: docker
+    directory: /ingest
+    schedule: { interval: weekly, day: monday }

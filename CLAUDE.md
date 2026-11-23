@@ -18,7 +18,7 @@
   Irish editions, or by two chains) are merged when their titles match apart from case and
   punctuation, into the listing with the most showings. Titles are cleaned first by Claude, not by
   hand-written rules (the user's decision, 2026-11-21): `showtimes-titles`
-  (`ingest/src/showtimes_ingest/titles.py`, Claude Opus 5.5) runs in each Publish run (`deploy.yml`), asks only about
+  (`ingest/src/showtimes_ingest/titles.py`, Claude Opus 5.5) runs in its own job of each Publish run (`deploy.yml`, before the site is built), asks only about
   titles it has not seen, and keeps its decisions in `titles.json` on the data release. Each
   decision is the film's own name, the year the title gives (remakes stay apart), and tags for what
   the rest said (format, language, festival or series, screening type, add-ons). The export reads
@@ -44,17 +44,26 @@
   one fallback to a real browser (`vista_browser.py`), the user's choice on 2026-11-20.
   Everyman and Showcase share one adapter for Webedia's boxoffice platform
   (`chains/boxoffice.py`, `site/src/chains/boxoffice.ts`). Every chain shares the lifecycle in
-  `refresh.py` and has its own workflow (`ingest-<chain>.yml` on `ingest-provider.yml`); they
-  run side by side, the tailnet ones each as an ephemeral device `ingest-<chain>`.
+  `refresh.py`. One workflow, Listings (`listings.yml`), runs the week: `plan` asks `policy.py`
+  which chains are due (`scripts/due.sh`), `ingest` runs each due chain side by side
+  (`ingest-provider.yml`, flags from `.github/chains.json`; the tailnet ones each as an ephemeral
+  device `ingest-<chain>`) and hands its changed file on as an artifact, then `publish` calls
+  `deploy.yml`, the data release's only writer, which publishes those files, cleans new titles
+  and builds the site.
 - Collection is weekly, not daily (the user's decision on 2026-11-20): each chain is due once per
   window in `policy.py` (ODEON Wednesday 21:00, Everyman Wednesday 06:00, the rest Tuesday 06:00,
-  London time), and its workflow's cron runs at that window and twice more an hour later. Keep the
-  crons and `policy.py` in step.
+  London time), and Listings' crons run at each window and twice more an hour later (a chain
+  already stored is left out without contacting it). Keep the crons and `policy.py` in step.
+  Publish also runs alone on a push to `main` or by hand, building the release's files as they are.
 - Keep every chain's traffic minimal: one ingest per published week, no retry loops, and never
   fetch per-screening live data. Tests use a fake of each chain. ODEON's traffic goes through
   the owner's tailnet (`scripts/via-tailnet.sh`) with the auth key `TAILSCALE_AUTHKEY`, tagged
   `tag:ingest` (generic, not ODEON's: the user's decision on 2026-11-22); that tag's rights
-  are set in the tailnet's policy, so leave them as they are.
+  are set in the tailnet's policy, so leave them as they are. Two parts of the ingest get past
+  the chains' own defences, as the owner's conscious choice (2026-11-23): ODEON, Vue,
+  Picturehouse and Curzon refuse cloud addresses and are reached through the owner's home exit
+  node, and Cineworld and Curzon are read with curl-impersonate, which presents Chrome's TLS
+  fingerprint. The other rules still hold: never pass a challenge or CAPTCHA, and one ingest a week.
 - There is no server and no secret in the site. The site is one finder (`site/src/main.ts`):
   columns of choices, then the showtimes, then the details. Every page the site once had is a
   column a visitor can add (`FACETS` in `queries.ts`; `q.find` counts each column with the
@@ -72,7 +81,9 @@
   GitHub Actions secrets.
 - `site/e2e/` holds Playwright tests that drive the built site by keys, clicks and scrolling
   against a small set of listings (`npm run e2e`; `PW_CHANNEL=chrome` uses an installed Chrome).
-  Add one for any change to how the site is navigated.
+  Add one for any change to how the site is navigated. CI runs them in Playwright's own image
+  (`mcr.microsoft.com/playwright:v<version>-noble` in `ci.yml`); keep its version the same as
+  `@playwright/test` in `site/package.json` when either changes.
 - Ship through a pull request and CI. The Publish workflow (`deploy.yml`, "Publish site and listings") publishes `main` and the latest listings to GitHub Pages
   (showtimes.ramuk.net). `main` is the only long-lived branch: every change reaches it by a
   pull request from its own short-lived branch cut from `main`; never push straight to it.
@@ -84,6 +95,9 @@
   other's files. The coordinating session reviews each branch, merges it and removes the
   worktree. Claude merges its own pull requests with a squash once CI is green and there
   is no conflict (the owner merges nothing).
+  Dependabot (`.github/dependabot.yml`) opens one grouped pull request a week per ecosystem
+  (actions, the site's npm, the ingest's uv, its Docker base); review its changes and merge it the
+  same way once CI is green.
 - Light (`chains/light/`) reads its public fortnight guide **and coming-soon JSON**; Olympic
   (`chains/olympic/`) reads three Cinema Cloud HTML pages for four venues; Reel
   (`chains/reel/`) reads public Jacro film pages. Hull, Morecambe and Quinton use
@@ -115,23 +129,24 @@
 - Build `ingest/Dockerfile` from the repo root: `checks` runs lint/tests; `api`
   contains the pinned curl binary without WebKit; default `runtime` includes WebKit.
   `bash scripts/ingest.sh <provider> run` writes the mounted data file without publishing.
-  CI and Ingest use these same containers. Vista accepts at most five cinema IDs
+  CI, Ingest and Publish use these same containers, built by `.github/actions/ingest-image`
+  with the GitHub Actions layer cache, so apt, curl-impersonate and WebKit download only when
+  the Dockerfile or what it copies changes. Vista accepts at most five cinema IDs
   per request; collect only the cinemas advertised for each business date, with
   no arbitrary future cutoff. Guest tokens stay in memory/stdin, never logs or files.
 - The README is for visitors only: what the site does and how to use it, with one listings badge
   at the top. No development detail (that belongs here) and no keys (`:help` has them). Keep it
   short. The badge is a shields.io endpoint, `data/badge.json` on the live site, written by the
-  export from the listings themselves (`site/src/badge.ts`): green with the fetch dates, or the
-  chains not fetched for over nine days. Workflow badges would show runs, not what the site shows.
+  export from the listings themselves (`site/src/badge.ts`): green with when the chains were updated, or the
+  chains whose latest run failed and those not updated for over nine days. Workflow badges would show runs, not what the site shows.
 - Adding a chain: (1) a package `ingest/src/showtimes_ingest/chains/<chain>/` writing the
   `store.py` schema and offering what `chains/__init__.py` lists (`NAME`, `check`, `ingest`,
   `settled_reason`, `search_title`), added to `CHAINS` with tests against a fake; a chain on a
   platform another uses needs only its name and website (`chains/everyman/`). (2) A
-  `site/src/chains/<chain>.ts` implementing `Chain`, added to `CHAINS` in `index.ts`. (3) An
-  `ingest-<chain>.yml` on `ingest-provider.yml` at its weekly window (`browser`, `via-tailnet` as
-  needed), the chain in `ingest.yml`'s dispatcher. Check first that
-  the chain's terms allow it.
-- Runs by hand: `ingest-<chain>.yml` or the dispatcher `ingest.yml` (`provider=all`), with
+  `site/src/chains/<chain>.ts` implementing `Chain`, added to `CHAINS` in `index.ts`. (3) A row in
+  `.github/chains.json` (`browser`, `tailnet` as needed), and its window in `policy.py` (with a
+  Listings cron if the window is new). Check first that the chain's terms allow it.
+- Runs by hand: Listings (`listings.yml`) with `chains=all` or chain names, and
   `command=check` (ingests only if the week is not stored; contacts nobody otherwise) or `run`
   (ingests now: only when needed, as it adds to the chain's traffic). A failure is recorded in the
   chain's file and retried at the next check, at most three times a week. The site needs the
@@ -141,4 +156,5 @@
 - Repository settings: secrets `TAILSCALE_AUTHKEY` and `OMDB_API_KEY` (optional, IMDb and
   Metacritic scores); variables `TAILSCALE_EXIT_NODE`, `ODEON_CINEMAS` (optional, comma-separated
   site IDs; empty is every cinema), and `ODEON_INGEST`, `CHAINS_INGEST` (every other chain) or
-  `<CHAIN>_INGEST` set to `false` to pause schedules.
+  `<CHAIN>_INGEST` set to `false` to pause a chain on schedule (read by `scripts/due.sh`; a run by
+  hand ignores them).

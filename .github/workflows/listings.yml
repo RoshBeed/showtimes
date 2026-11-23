@@ -1,0 +1,80 @@
+name: Listings
+# The weekly pipeline, in one run: which chains are due (policy.py), each due chain's ingest side
+# by side, then Publish (deploy.yml) writes their files to the data release, cleans new titles and
+# builds them into the site. Each chain's adapter flags are in .github/chains.json.
+on:
+  schedule:
+    # Each weekly window in policy.py, and twice more an hour later for a chain that failed;
+    # a chain already stored this week is left out without contacting it.
+    - cron: "15 6-8 * * 2" # Tuesday 06:00: most chains
+      timezone: Europe/London
+    - cron: "15 6-8 * * 3" # Wednesday 06:00: Everyman
+      timezone: Europe/London
+    - cron: "15 21-23 * * 3" # Wednesday 21:00: ODEON
+      timezone: Europe/London
+  workflow_dispatch:
+    inputs:
+      chains:
+        description: "all, or chain names (odeon vue …)"
+        default: all
+      command:
+        description: "check ingests a chain when it is due; run ingests it now"
+        type: choice
+        options: [check, run]
+        default: check
+# One run at a time, each kept in turn.
+concurrency:
+  group: listings
+  queue: max
+permissions:
+  contents: write # the data release
+  actions: write # keeping this schedule enabled
+  pages: write # Publish
+  id-token: write # Publish: Claude and Pages
+jobs:
+  plan:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.due.outputs.matrix }}
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/ingest-image
+        with:
+          target: api
+      - run: bash scripts/listings.sh download
+      - name: Which chains to ingest
+        id: due
+        env:
+          CHAINS: ${{ inputs.chains || 'all' }}
+          COMMAND: ${{ inputs.command || 'check' }}
+          EVENT: ${{ github.event_name }}
+          VARS: ${{ toJSON(vars) }}
+        run: echo "matrix=$(bash scripts/due.sh)" >> "$GITHUB_OUTPUT"
+      # GitHub stops the schedule of a repository with no activity for 60 days.
+      - name: Keep this schedule enabled
+        run: gh workflow enable listings.yml
+  ingest:
+    needs: plan
+    if: needs.plan.outputs.matrix != '[]'
+    strategy:
+      fail-fast: false
+      matrix:
+        include: ${{ fromJSON(needs.plan.outputs.matrix) }}
+    uses: ./.github/workflows/ingest-provider.yml
+    with:
+      provider: ${{ matrix.chain }}
+      command: ${{ matrix.command }}
+      browser: ${{ matrix.browser }}
+      via-tailnet: ${{ matrix.tailnet }}
+    secrets: inherit
+  # After every ingest, failed ones included: a failure is recorded in its chain's file.
+  publish:
+    needs: [plan, ingest]
+    if: always() && needs.plan.result == 'success' && needs.plan.outputs.matrix != '[]'
+    uses: ./.github/workflows/deploy.yml
+    with:
+      chains: true
+    secrets: inherit

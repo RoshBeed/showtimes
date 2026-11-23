@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
-# One provider's workflow: check whether it is due,
-# ingest, rate the films, and publish its file if it changed. Prints changed=true
-# when it did. With VIA set (scripts/via-tailnet.sh), the fetch alone goes through
+# One provider's ingest: check whether it is due, ingest, and rate the films. Says
+# changed=true or changed=false (to GITHUB_OUTPUT in a workflow); Publish puts a changed
+# file on the data release. With VIA set (scripts/via-tailnet.sh), the fetch alone goes through
 # it, and only when the chain is due.
 #   [VIA=…] ingest-chain.sh <chain> check|run
 # Needs: data/<chain>.sqlite downloaded first (scripts/listings.sh download),
-# the ingest Docker image, gh signed in, and OMDB_API_KEY for ratings (optional).
+# and the ingest Docker image; OMDB_API_KEY for ratings is optional.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 chain=${1:?usage: $0 <chain> check|run}
@@ -24,7 +24,9 @@ if [ "$command" = run ] || [ "$due" = 0 ]; then
 elif [ "$due" != 3 ]; then
   status=$due
 fi
-bash scripts/ingest.sh "$chain" ratings || status=$?
+# Ratings are optional (OMDb's free key allows 1,000 lookups a day): a failure is a warning,
+# recorded in the file, never the chain's failure. The next run fills in what is missing.
+bash scripts/ingest.sh "$chain" ratings || echo "::warning::$chain: ratings not updated (see the log)"
 if [ -n "${GITHUB_STEP_SUMMARY:-}" ]; then
   {
     printf '### %s ingestion\n\n```json\n' "$chain"
@@ -33,10 +35,9 @@ if [ -n "${GITHUB_STEP_SUMMARY:-}" ]; then
   } >> "$GITHUB_STEP_SUMMARY"
 fi
 # Also after a failure, so that the failed run is on record next time.
+changed=false
 if [ -f "$SHOWTIMES_DATABASE" ] && [ "$(sha256sum "$SHOWTIMES_DATABASE")" != "$before" ]; then
-  bash scripts/listings.sh upload "$chain"
-  echo "changed=true"
-else
-  echo "Nothing new to publish for $chain."
+  changed=true
 fi
+echo "changed=$changed" | tee -a "${GITHUB_OUTPUT:-/dev/null}"
 exit "$status"

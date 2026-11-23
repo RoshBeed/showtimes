@@ -14,9 +14,6 @@ on:
       via-tailnet:
         type: boolean
         default: false
-      workflow:
-        type: string
-        required: true
       validation:
         description: Build the production image without contacting or publishing to providers
         type: boolean
@@ -41,31 +38,26 @@ jobs:
       OMDB_API_KEY: ${{ secrets.OMDB_API_KEY }}
       TAILSCALE_EXIT_NODE: ${{ vars.TAILSCALE_EXIT_NODE }}
       TAILSCALE_AUTHKEY: ${{ secrets.TAILSCALE_AUTHKEY }}
-      INGEST_WORKFLOW: ${{ inputs.workflow }}
     steps:
       - uses: actions/checkout@v7
       - name: Build the shared ingest container
-        env:
-          TARGET: ${{ inputs.browser && 'runtime' || 'api' }}
-        run: docker build --target "$TARGET" -f ingest/Dockerfile -t showtimes-ingest .
+        uses: ./.github/actions/ingest-image
+        with:
+          target: ${{ inputs.browser && 'runtime' || 'api' }}
       - name: Fetch this provider's stored listings
         if: ${{ !inputs.validation }}
         run: bash scripts/listings.sh download "$CHAIN"
-      - name: Refresh this provider and publish its result
+      - name: Refresh this provider
         if: ${{ !inputs.validation }}
         id: ingest
         env:
           VIA: ${{ inputs.via-tailnet && format('{0}/scripts/via-tailnet.sh', github.workspace) || '' }}
-        run: |
-          set -o pipefail
-          bash scripts/ingest-chain.sh "$CHAIN" "$COMMAND" | tee "$RUNNER_TEMP/result"
-      - name: Build the published site through its own workflow
-        # Failure records are published too, so status remains visible with old data.
-        if: ${{ always() && !inputs.validation }}
-        run: |
-          if [ -f "$RUNNER_TEMP/result" ] && grep -q '^changed=true$' "$RUNNER_TEMP/result"; then
-            gh workflow run deploy.yml --ref main
-          fi
-      - name: Keep this provider's schedule enabled
-        if: ${{ always() && !inputs.validation }}
-        run: gh workflow enable "$INGEST_WORKFLOW"
+        run: bash scripts/ingest-chain.sh "$CHAIN" "$COMMAND"
+      # The changed file, failure records included, for Publish, the data release's only writer.
+      - name: Hand the file to Publish
+        if: ${{ always() && !inputs.validation && steps.ingest.outputs.changed == 'true' }}
+        uses: actions/upload-artifact@v5
+        with:
+          name: chain-${{ inputs.provider }}
+          path: data/${{ inputs.provider }}.sqlite
+          retention-days: 7
