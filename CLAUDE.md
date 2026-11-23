@@ -87,6 +87,9 @@
   other's files. The coordinating session reviews each branch, merges it and removes the
   worktree. Claude merges its own pull requests with a squash once CI is green and there
   is no conflict (the owner merges nothing).
+  Dependabot (`.github/dependabot.yml`) opens one grouped pull request a week per ecosystem
+  (actions, the site's npm, the ingest's uv, its Docker base); review its changes and merge it the
+  same way once CI is green.
 - Light (`chains/light/`) reads its public fortnight guide **and coming-soon JSON**; Olympic
   (`chains/olympic/`) reads three Cinema Cloud HTML pages for four venues; Reel
   (`chains/reel/`) reads public Jacro film pages. Hull, Morecambe and Quinton use
