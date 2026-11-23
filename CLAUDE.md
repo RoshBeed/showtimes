@@ -118,7 +118,9 @@
 - Build `ingest/Dockerfile` from the repo root: `checks` runs lint/tests; `api`
   contains the pinned curl binary without WebKit; default `runtime` includes WebKit.
   `bash scripts/ingest.sh <provider> run` writes the mounted data file without publishing.
-  CI and Ingest use these same containers. Vista accepts at most five cinema IDs
+  CI, Ingest and Publish use these same containers, built by `.github/actions/ingest-image`
+  with the GitHub Actions layer cache, so apt, curl-impersonate and WebKit download only when
+  the Dockerfile or what it copies changes. Vista accepts at most five cinema IDs
   per request; collect only the cinemas advertised for each business date, with
   no arbitrary future cutoff. Guest tokens stay in memory/stdin, never logs or files.
 - The README is for visitors only: what the site does and how to use it, with one listings badge

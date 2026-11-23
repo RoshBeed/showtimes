@@ -9,8 +9,11 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
+      # The checks stage runs ruff and the tests while it builds.
       - name: Check ingest in Docker
-        run: docker build --target checks -f ingest/Dockerfile -t showtimes-ingest-checks .
+        uses: ./.github/actions/ingest-image
+        with:
+          target: checks
       # actionlint 1.7.12 predates GitHub's documented FIFO queue property.
       # Only that exact diagnostic is ignored; the reusable workflow is also
       # parsed and executed by GitHub in the workflow job below.
