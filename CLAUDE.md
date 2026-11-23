@@ -86,7 +86,10 @@
   (`?cinemas=london&hidden=…&show=events`; Greater London ticked whole is written `london`),
   and the view in the hash (`#cols=day,film,screen&film=…&film=…&order=film:rating&col=2&row=5`;
   a column with several choices repeats its name, and a showing matches any of them: Shift-click
-  a range, Ctrl/Cmd-click one more, or `V` visual line mode),
+  a range, Ctrl/Cmd-click one more, or the keys of ranger and lf: Space marks the line and moves
+  down, `V` marks a range, and a column with marks has a free cursor (`cursors` in `state.ts`), so
+  j and k move without choosing until Space on All clears them. A column's heading or empty space,
+  clicked, goes to it and changes nothing),
   so a bookmark is a saved view; the default view has no hash at all. `fields=` picks what each
   showtime row shows (`FIELDS` in `choices.ts`), and rows too wide for their column leave out the
   least needed first. Nothing is stored in the browser. The default view is Cinema then
