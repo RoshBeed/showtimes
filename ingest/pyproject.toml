@@ -10,6 +10,7 @@ dependencies = [
 [project.scripts]
 showtimes-ingest = "showtimes_ingest.cli:main"
 showtimes-titles = "showtimes_ingest.titles:main"
+showtimes-ratings = "showtimes_ingest.ratings:main"
 
 [dependency-groups]
 dev = ["ruff>=0.17.4"]

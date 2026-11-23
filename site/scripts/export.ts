@@ -10,7 +10,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { gzipSync } from 'node:zlib';
 import { CHAINS } from '../src/chains/index.ts';
 import { listingsBadge } from '../src/badge.ts';
-import { exportListings, type Source } from '../src/export.ts';
+import { exportListings, type Ratings, type Source } from '../src/export.ts';
 import type { Titles } from '../src/titles.ts';
 
 const [to, ...files] = process.argv.slice(2);
@@ -31,10 +31,13 @@ const titles: Titles = {
   ...JSON.parse(readFileSync(new URL('../src/titles.overrides.json', import.meta.url), 'utf8')),
 };
 console.log(existsSync(cleaned) ? `Cleaning titles with ${cleaned}` : `No ${cleaned}: titles stay as the chains wrote them`);
+// Each film's scores, looked up once across every chain (ingest/src/showtimes_ingest/ratings.py).
+const rated = join(dirname(files[0]), 'ratings.json');
+const ratings: Ratings = existsSync(rated) ? JSON.parse(readFileSync(rated, 'utf8')) : {};
 mkdirSync(to, { recursive: true });
-const all = exportListings(sources, undefined, titles);
+const all = exportListings(sources, undefined, titles, ratings);
 const london = all.cinemas.filter((cinema) => cinema.town === 'Greater London').map((cinema) => cinema.id);
-for (const [name, data] of [['listings', all], ['london', exportListings(sources, new Set(london), titles)]] as const) {
+for (const [name, data] of [['listings', all], ['london', exportListings(sources, new Set(london), titles, ratings)]] as const) {
   writeFileSync(`${to}/${name}.json.gz`, gzipSync(JSON.stringify(data)));
   console.log(`Wrote ${data.rows.length} showings to ${to}/${name}.json.gz`);
 }

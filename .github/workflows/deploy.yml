@@ -101,9 +101,24 @@ jobs:
           { echo '### Titles Claude cleaned'; echo; grep -v '^changed=' "$RUNNER_TEMP/titles"; } >> "$GITHUB_STEP_SUMMARY"
           # Each batch is saved as it is answered: what was decided is kept even when a later batch fails.
           if [ -f data/titles.json ] && [ "$(sha256sum data/titles.json)" != "$before" ]; then
-            bash scripts/listings.sh upload-titles
+            bash scripts/listings.sh upload-json titles
           fi
           exit "$status"
+      # IMDb and Metacritic scores, once per film across every chain, by Claude's clean titles
+      # (ingest/src/showtimes_ingest/ratings.py). Optional: without them the site shows none.
+      - name: Rate the films
+        if: steps.listings.outputs.published == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          OMDB_API_KEY: ${{ secrets.OMDB_API_KEY }}
+        run: |
+          set -o pipefail
+          status=0
+          docker run --rm -v "$PWD/data:/data" -v "$PWD/site/src/titles.overrides.json:/overrides.json:ro" \
+            -e OMDB_API_KEY --entrypoint uv showtimes-ingest run --no-sync showtimes-ratings /data /overrides.json \
+            | tee "$RUNNER_TEMP/ratings" || status=$?
+          if grep -qx 'changed=true' "$RUNNER_TEMP/ratings"; then bash scripts/listings.sh upload-json ratings; fi
+          if [ "$status" != 0 ]; then echo "::warning::ratings not updated (see the log)"; fi
   build:
     needs: titles
     if: needs.titles.outputs.published == 'true'
@@ -113,7 +128,7 @@ jobs:
       pages: read
     steps:
       - uses: actions/checkout@v7
-      - name: Fetch the listings and the titles Claude decided
+      - name: Fetch the listings, the titles Claude decided and the ratings
         run: |
           bash scripts/listings.sh download
         env:
