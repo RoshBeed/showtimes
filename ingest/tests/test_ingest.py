@@ -277,15 +277,11 @@ class DatabaseTests(unittest.TestCase):
         self.assertTrue(changed)
         # Two films, each listed by both chains: two lookups, not four.
         self.assertEqual((summary["films"], summary["asked"]), (2, 2))
+        saved = json.loads((folder / "ratings.json").read_text())
+        self.assertEqual(saved["films"]["dune|"]["checked"], "2026-11-11")
+        # The export reads each raw title's scores, as it reads titles.json.
         self.assertEqual(
-            json.loads((folder / "ratings.json").read_text())["dune|"],
-            {
-                "title": "Dune",
-                "imdb_id": "tt1",
-                "imdb": 8.4,
-                "metacritic": 74,
-                "checked": "2026-11-11",
-            },
+            saved["titles"]["Dune"], {"imdb_id": "tt1", "imdb": 8.4, "metacritic": 74}
         )
 
     def test_omdb_is_asked_only_about_films_it_has_not_seen(self):
@@ -312,7 +308,8 @@ class DatabaseTests(unittest.TestCase):
             ratings.rate(folder, "k", today=TODAY)
         lookup.assert_any_call("Dune: Part One", "2021-01-01")
         self.assertIn(
-            "dunepartone|2021", json.loads((folder / "ratings.json").read_text())
+            "dunepartone|2021",
+            json.loads((folder / "ratings.json").read_text())["films"],
         )
 
     def test_a_rejected_key_keeps_what_was_found(self):
@@ -331,15 +328,9 @@ class DatabaseTests(unittest.TestCase):
         self.assertEqual(
             (summary["asked"], summary["stopped"]), (0, "Invalid API key!")
         )
-        self.assertEqual(json.loads((folder / "ratings.json").read_text()), {})
-
-    def test_title_keys_match_the_sites(self):
-        # site/src/titles.ts: titleKey
         self.assertEqual(
-            ratings.title_key("Amélie: L’Édition Spéciale!"), "amelieleditionspeciale"
-        )
-        self.assertEqual(
-            ratings.film_key("Black Christmas", 1974), "blackchristmas|1974"
+            json.loads((folder / "ratings.json").read_text()),
+            {"films": {}, "titles": {}},
         )
 
 

@@ -16,8 +16,9 @@ export interface Source {
 
 /** Everything, or with `only`, the showings and announcements of just those cinemas (exported IDs).
  *  `titles` cleans the chains' film titles (src/titles.ts); a title it lacks stays as the chain wrote it. */
-/** What OMDb and IMDb say of each film, by clean title and year (ingest/src/showtimes_ingest/ratings.py). */
-export type Ratings = Record<string, { imdb_id: string | null; imdb: number | null; metacritic: number | null }>;
+/** What OMDb and IMDb say of each film, under each raw title as a chain lists it, as titles.json
+ *  is (ingest/src/showtimes_ingest/ratings.py). */
+export interface Ratings { titles?: Record<string, { imdb_id: string | null; imdb: number | null; metacritic: number | null }> }
 
 export function exportListings(sources: Source[], only?: Set<string>, titles: Titles = {}, ratings: Ratings = {}): Data {
   // Most of a showing repeats in others (its cinema, film, date, formats),
@@ -65,15 +66,15 @@ export function exportListings(sources: Source[], only?: Set<string>, titles: Ti
       genres: (JSON.parse(genres) as string[]).map((name) => name.trim()),
       people: JSON.parse(people),
     }))) {
+      // Scores looked up once per film across every chain; a chain's file may still hold its own.
+      const rated = ratings.titles?.[film.title];
+      if (rated?.imdb_id) Object.assign(film, { imdb: rated.imdb, imdbId: rated.imdb_id, metacritic: rated.metacritic });
       const cleaned = titles[film.title];
       if (cleaned) {
         film.title = cleaned.title;
         decorations.set(film.id, cleaned.tags);
         if (cleaned.year) years.set(film.id, cleaned.year);
       }
-      // Scores looked up once per film across every chain; a chain's file may still hold its own.
-      const rated = ratings[`${titleKey(film.title)}|${cleaned?.year ?? ''}`];
-      if (rated?.imdb_id) Object.assign(film, { imdb: rated.imdb, imdbId: rated.imdb_id, metacritic: rated.metacritic });
       const key = titleKey(film.title) || film.id;
       editions.set(key, [...(editions.get(key) ?? []), film]);
     }

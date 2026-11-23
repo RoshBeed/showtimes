@@ -36,8 +36,8 @@ test("a film two chains list is one film, with the busier listing's own details 
   expect(data.chains.map((each) => each.id)).toEqual(['odeon', 'everyman']);
 });
 
-test("a film's scores come from ratings.json, by its clean title and year, whichever chain lists it", () => {
-  const ratings = { 'dune|': { imdb_id: 'tt1', imdb: 8.4, metacritic: 74 }, 'blackchristmas|1974': { imdb_id: 'tt2', imdb: 7.1, metacritic: null } };
+test("a film's scores come from ratings.json, under the title as its chain lists it", () => {
+  const ratings = { titles: { 'DUNE (IMAX)': { imdb_id: 'tt1', imdb: 8.4, metacritic: 74 }, 'Black Christmas (1974)': { imdb_id: 'tt2', imdb: 7.1, metacritic: null } } };
   const titles = {
     'DUNE (IMAX)': { title: 'Dune', year: null, tags: [] },
     'Black Christmas (1974)': { title: 'Black Christmas', year: 1974, tags: [] },
