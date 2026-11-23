@@ -119,6 +119,10 @@ jobs:
             | tee "$RUNNER_TEMP/ratings" || status=$?
           if grep -qx 'changed=true' "$RUNNER_TEMP/ratings"; then bash scripts/listings.sh upload-json ratings; fi
           if [ "$status" != 0 ]; then echo "::warning::ratings not updated (see the log)"; fi
+          # OMDb stopped (a bad key or the day's quota): what was found is kept, the rest waits.
+          if grep -q '"stopped": "' "$RUNNER_TEMP/ratings"; then
+            echo "::warning::OMDb stopped: $(grep -o '"stopped": "[^"]*"' "$RUNNER_TEMP/ratings" | cut -d'"' -f4); the rest are rated next run"
+          fi
   build:
     needs: titles
     if: needs.titles.outputs.published == 'true'
