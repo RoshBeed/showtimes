@@ -3,10 +3,12 @@ import { type Buffer, command, held, openCommand, say, seat, show } from './cmdl
 import { FIELD_ABOUT, KINDS, names, PARTS } from './columns';
 import { button, checkbox, count, h } from './dom';
 import { hideFilm, rebuild } from './finder';
+import { day } from './format';
 import { noteNow, undoOrRedo } from './history';
 import { patternOf } from './keys';
 import * as q from './queries';
 import { address, db, extras, hidden, londonOnly, ticks, toggle, view } from './state';
+import { about } from './version';
 
 // ---- Settings: a drawer at the side, so the finder shows each change as it is made ----
 
@@ -179,6 +181,8 @@ export function fillPanel() {
         }), 'copy'),
         keyed(button('Start over', () => changed(startOver), { title: 'Every cinema, the default columns, nothing hidden' }), 'reset'),
         copied)),
+
+    listingsStatus(),
   );
   panel.scrollTop = scrolled;
   const again = held ? panel.querySelector<HTMLElement>(`[data-key="${CSS.escape(held)}"]`) : null;
@@ -330,3 +334,14 @@ panel.addEventListener('focusin', (event) => {
   const target = event.target as HTMLElement;
   if (target !== command) cursorline(lineOf(target));
 });
+
+/** How fresh the listings are, which version of the site this is, and where it lives. */
+function listingsStatus(): HTMLElement {
+  const stamp = db.ingested;
+  const old = stamp !== null && Date.now() - Date.parse(stamp) > 8 * 86400000;
+  return h('p', { class: 'status dim' },
+    `Listings from ${stamp ? day(stamp) : 'no ingest yet'}`,
+    ...(db.fullUntil ? [` · full to ${day(db.fullUntil)}`] : []),
+    ...(old ? [h('span', { class: 'stale' }, ' · more than a week old')] : []),
+    ' · ', about());
+}

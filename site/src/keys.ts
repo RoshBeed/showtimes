@@ -1,7 +1,7 @@
 import { onlyPick, PAGE, pick, picked } from './choices';
 import { held, help, openCommand, say, show } from './cmdline';
 import { KINDS } from './columns';
-import { panel, where } from './drawer';
+import { openPanel, panel, where } from './drawer';
 import { hideFilm, lastColumn, rebuild } from './finder';
 import { noteNow, restore, undoOrRedo } from './history';
 import * as q from './queries';
@@ -132,7 +132,12 @@ document.addEventListener('keydown', (event) => {
     endVisual();
     if (keep) return event.preventDefault();
   }
-  if (key === 'Escape') return; // cancels the count or the half-typed command
+  if (key === 'Escape') {
+    // Esc cancels a count or a half-typed command; with nothing to cancel, it opens the settings.
+    // Its own default would close the window it has just opened.
+    if (!counted && !pair) { event.preventDefault(); openPanel(); }
+    return;
+  }
 
   const { at, facet, pane, length, here } = inHand();
   const shown = at.rows[view.row];

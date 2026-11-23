@@ -56,7 +56,7 @@ test('keys choose in each column, each counts what the others leave, and the add
   await page.keyboard.press('g');
   await page.keyboard.press('g'); // the first line: All
   await expect(total(page)).toHaveText('3');
-  await page.locator('footer .name a').click(); // the default view, which needs nothing after the address
+  await ex(page, 'e!'); // start over: the default view, which needs nothing after the address
   await expect(titles(page)).toHaveText(['Chain', 'Cinema', 'Film', 'Showtimes', /./]);
   await expect(page).toHaveURL(/\/$/);
 });
@@ -124,14 +124,26 @@ test('Space marks lines apart, as in ranger or lf: j and k then move without cho
   await expect(selected).toHaveText([/^Aberdeen/]);
 });
 
-test('there is no header: the footer names the site and opens the settings, on one line', async ({ page }) => {
+test('no header and no footer: Esc or the button in the showtimes\' heading opens the settings, floating over the columns', async ({ page }) => {
   await visit(page, '/');
-  await expect(page.locator('header')).toHaveCount(0);
-  const footer = page.locator('footer');
-  // One line of text and its padding, as before the settings moved in (33px).
-  expect((await footer.boundingBox())!.height).toBeLessThan(40);
-  await footer.locator('.open-panel').click();
-  await expect(page.getByRole('dialog', { name: 'Settings' })).toBeVisible();
+  await expect(page.locator('header, footer')).toHaveCount(0);
+  const settings = page.getByRole('dialog', { name: 'Settings' });
+  await page.keyboard.press('Escape'); // nothing to cancel: the settings
+  await expect(settings).toBeVisible();
+  // A window over the columns, not a panel down the side: narrower than the page and clear of its edges.
+  const [window_, page_] = [(await settings.boundingBox())!, page.viewportSize()!];
+  expect(window_.x).toBeGreaterThan(10);
+  expect(window_.x + window_.width).toBeLessThan(page_.width - 10);
+  expect(window_.y).toBeGreaterThan(10);
+  await expect(settings.locator('.status')).toHaveText(/^Listings from .* · version /);
+  await page.keyboard.press('Escape');
+  await expect(settings).toBeHidden();
+  // A count or a half-typed command is what Esc cancels first.
+  await page.keyboard.press('3');
+  await page.keyboard.press('Escape');
+  await expect(settings).toBeHidden();
+  await column(page, 'Showtimes').locator('.open-panel').click();
+  await expect(settings).toBeVisible();
 });
 
 test('vim keys move between and through the columns', async ({ page }) => {
@@ -352,13 +364,13 @@ test('a long list of showtimes draws more as the reader scrolls and as the highl
   await expect(showtimes(page).nth(205)).toHaveClass(/selected/);
 });
 
-test('the window holds the columns clear of the footer, and a highlighted row clear of its heading', async ({ page }) => {
+test('the window holds the columns to its height, and a highlighted row clear of its heading', async ({ page }) => {
   await page.setViewportSize({ width: 1024, height: 700 });
   await visit(page, '/#col=4');
   for (const [key, times] of [['ArrowDown', 40], ['ArrowUp', 30]] as const) for (let press = 0; press < times; press += 1) await page.keyboard.press(key);
   const box = async (selector: string) => (await page.locator(selector).first().boundingBox())!;
-  const [strip, footer, heads, row] = [await box('.columns'), await box('footer'), await box('.showtimes li.heads'), await box('.showtimes .selected')];
-  expect(strip.y + strip.height).toBeLessThanOrEqual(footer.y + 1);
+  const [strip, heads, row] = [await box('.columns'), await box('.showtimes li.heads'), await box('.showtimes .selected')];
+  expect(strip.y + strip.height).toBeLessThanOrEqual(700 + 1);
   expect(row.y).toBeGreaterThanOrEqual(heads.y + heads.height - 1);
 });
 
@@ -374,7 +386,7 @@ test('the showtimes are headed, a heading orders them, and the settings choose w
   await expect(heads).toHaveText(/Day.*Seats ▲/); // out of date order, each row says its day
   await heads.getByRole('button', { name: /Order by seats/ }).click();
   await expect(page).toHaveURL(/sort=seats&desc=1/);
-  await page.locator('footer .open-panel').click();
+  await page.locator('.column.showtimes .open-panel').click();
   const panel = page.locator('dialog.panel');
   await panel.locator('[data-key="field-ends"]').check();
   await panel.locator('[data-key="field-picture"]').uncheck();
@@ -386,7 +398,7 @@ test('the showtimes are headed, a heading orders them, and the settings choose w
 
 test('London only, at the top of the settings, is ?cinemas=london and loads only its listings', async ({ page }) => {
   await visit(page, '/');
-  await page.locator('footer .open-panel').click();
+  await page.locator('.column.showtimes .open-panel').click();
   const london = page.locator('dialog.panel').getByLabel(/London only/);
   await london.check();
   await expect(page).toHaveURL(/\?cinemas=london$/);
@@ -401,9 +413,9 @@ test('London only, at the top of the settings, is ?cinemas=london and loads only
   await expect(page).not.toHaveURL(/cinemas=/);
   await expect(choices(page, 'Cinema')).toHaveText([/^All/, /^Aberdeen/, /^Holloway/, /^West End/]);
   expect(fetched).toEqual([expect.stringMatching(/^london/), expect.stringMatching(/^listings(-[0-9a-f]+)?\.json\.gz$/)]); // every cinema, fetched once needed
-  await page.locator('footer .open-panel').click();
+  await page.locator('.column.showtimes .open-panel').click();
   await expect(london).not.toBeChecked();
-  await expect(page.locator('footer .open-panel')).toHaveText('Settings');
+  await expect(page.locator('.column.showtimes .open-panel')).toHaveText('Settings');
 });
 
 test('event cinema and single cinemas are chosen in the settings', async ({ page }) => {
@@ -478,13 +490,16 @@ test('more than one chain: films shared, a Chain column, each cinema marked and 
 });
 
 
-test('the footer and :help show which version is running, linked to its commit, and the GitHub repository', async ({ page }) => {
+test('the settings and :help show which version is running, linked to its commit, and the GitHub repository', async ({ page }) => {
   await visit(page, '/');
-  const about = page.locator('footer .about');
+  await page.keyboard.press('Escape');
+  const about = page.locator('dialog.panel:not(.keylist) .about');
   // A commit when the build knows it (Publish, or a git checkout); CI's site check builds without one.
   await expect(about.locator('a.version')).toHaveText(/^version ((\S+ )?[0-9a-f]{7}|local build)$/);
   await expect(about.locator('a.version')).toHaveAttribute('href', /^https:\/\/github\.com\/RoshBeed\/showtimes(\/commit\/[0-9a-f]{40})?$/);
   await expect(about.locator('a.github')).toHaveAttribute('href', 'https://github.com/RoshBeed/showtimes');
+  const version = await about.locator('a.version').innerText();
+  await page.keyboard.press('Escape');
   await ex(page, 'help');
-  await expect(page.locator('dialog.keylist .about a.version')).toHaveText(await about.locator('a.version').innerText());
+  await expect(page.locator('dialog.keylist .about a.version')).toHaveText(version);
 });
