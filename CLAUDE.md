@@ -75,7 +75,9 @@
   GitHub Actions secrets.
 - `site/e2e/` holds Playwright tests that drive the built site by keys, clicks and scrolling
   against a small set of listings (`npm run e2e`; `PW_CHANNEL=chrome` uses an installed Chrome).
-  Add one for any change to how the site is navigated.
+  Add one for any change to how the site is navigated. CI runs them in Playwright's own image
+  (`mcr.microsoft.com/playwright:v<version>-noble` in `ci.yml`); keep its version the same as
+  `@playwright/test` in `site/package.json` when either changes.
 - Ship through a pull request and CI. The Publish workflow (`deploy.yml`, "Publish site and listings") publishes `main` and the latest listings to GitHub Pages
   (showtimes.ramuk.net). `main` is the only long-lived branch: every change reaches it by a
   pull request from its own short-lived branch cut from `main`; never push straight to it.
