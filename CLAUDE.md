@@ -49,7 +49,10 @@
 - Collection is weekly, not daily (the user's decision on 2026-11-20): each chain is due once per
   window in `policy.py` (ODEON Wednesday 21:00, Everyman Wednesday 06:00, the rest Tuesday 06:00,
   London time), and its workflow's cron runs at that window and twice more an hour later. Keep the
-  crons and `policy.py` in step.
+  crons and `policy.py` in step. An ingest publishes only its file on the data release; Publish
+  (`deploy.yml`) builds every file into the site on its own schedule after each window (Tuesday and
+  Wednesday 09:41, Thursday 02:41 UTC; keep it after the ingest crons), on a push to `main`, or by
+  hand, which is how a manual ingest reaches the site.
 - Keep every chain's traffic minimal: one ingest per published week, no retry loops, and never
   fetch per-screening live data. Tests use a fake of each chain. ODEON's traffic goes through
   the owner's tailnet (`scripts/via-tailnet.sh`) with the auth key `TAILSCALE_AUTHKEY`, tagged
@@ -121,8 +124,8 @@
 - The README is for visitors only: what the site does and how to use it, with one listings badge
   at the top. No development detail (that belongs here) and no keys (`:help` has them). Keep it
   short. The badge is a shields.io endpoint, `data/badge.json` on the live site, written by the
-  export from the listings themselves (`site/src/badge.ts`): green with the fetch dates, or the
-  chains not fetched for over nine days. Workflow badges would show runs, not what the site shows.
+  export from the listings themselves (`site/src/badge.ts`): green with when the chains were updated, or the
+  chains whose latest run failed and those not updated for over nine days. Workflow badges would show runs, not what the site shows.
 - Adding a chain: (1) a package `ingest/src/showtimes_ingest/chains/<chain>/` writing the
   `store.py` schema and offering what `chains/__init__.py` lists (`NAME`, `check`, `ingest`,
   `settled_reason`, `search_title`), added to `CHAINS` with tests against a fake; a chain on a
