@@ -14,9 +14,6 @@ on:
       via-tailnet:
         type: boolean
         default: false
-      workflow:
-        type: string
-        required: true
       validation:
         description: Build the production image without contacting or publishing to providers
         type: boolean
@@ -41,7 +38,6 @@ jobs:
       OMDB_API_KEY: ${{ secrets.OMDB_API_KEY }}
       TAILSCALE_EXIT_NODE: ${{ vars.TAILSCALE_EXIT_NODE }}
       TAILSCALE_AUTHKEY: ${{ secrets.TAILSCALE_AUTHKEY }}
-      INGEST_WORKFLOW: ${{ inputs.workflow }}
     steps:
       - uses: actions/checkout@v7
       - name: Build the shared ingest container
@@ -51,13 +47,17 @@ jobs:
       - name: Fetch this provider's stored listings
         if: ${{ !inputs.validation }}
         run: bash scripts/listings.sh download "$CHAIN"
-      - name: Refresh this provider and publish its result
+      - name: Refresh this provider
         if: ${{ !inputs.validation }}
         id: ingest
         env:
           VIA: ${{ inputs.via-tailnet && format('{0}/scripts/via-tailnet.sh', github.workspace) || '' }}
-        # The file is published to the data release; the scheduled Publish run builds it into the site.
         run: bash scripts/ingest-chain.sh "$CHAIN" "$COMMAND"
-      - name: Keep this provider's schedule enabled
-        if: ${{ always() && !inputs.validation }}
-        run: gh workflow enable "$INGEST_WORKFLOW"
+      # The changed file, failure records included, for Publish, the data release's only writer.
+      - name: Hand the file to Publish
+        if: ${{ always() && !inputs.validation && steps.ingest.outputs.changed == 'true' }}
+        uses: actions/upload-artifact@v5
+        with:
+          name: chain-${{ inputs.provider }}
+          path: data/${{ inputs.provider }}.sqlite
+          retention-days: 7
