@@ -14,7 +14,7 @@ Phoenix and ActOne, in one place. Listings are refreshed every week.
 
 ## Finding a film
 
-- **Choose your cinemas** in **Settings** (top right): every cinema, London only, or
+- **Choose your cinemas** in **Settings** (in the footer; on a phone, at the end of the top row): every cinema, London only, or
   the ones you go to.
 - **Narrow it down** by picking in the columns: cinema, film, day, and any others you
   add in Settings, such as screen size, picture format, language or accessibility.
@@ -34,7 +34,7 @@ One column shows at a time. Tap a choice to move on, and tap the buttons along t
 top to go back.
 
 <p>
-  <img src="docs/screenshots/phone-films.png" alt="On a phone: the Film column" width="260">
+  <img src="docs/screenshots/phone-films.png" alt="On a phone: the Film column at ODEON West End, with Settings at the end of the top row" width="260">
   <img src="docs/screenshots/phone-showtimes.png" alt="On a phone: a film's showtimes, day by day" width="260">
   <img src="docs/screenshots/phone-details.png" alt="On a phone: one showing's details, with the booking link" width="260">
 </p>

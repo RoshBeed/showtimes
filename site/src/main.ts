@@ -339,13 +339,12 @@ function render() {
 
   document.title = 'showtimes';
   app.className = 'finder-page';
+  // No header: the footer names the site and opens the settings; on a phone, where the footer is
+  // hidden, the row of steps at the top ends with the settings.
   app.replaceChildren(
-    h('header', {},
-      h('h1', {}, home()),
-      button('Settings', openPanel, { class: 'open-panel', 'aria-keyshortcuts': 'o' })),
-    steps,
+    h('div', { class: 'topbar' }, steps, settings()),
     h('div', { class: 'columns finder' }, ...panes),
-    footer(['hjkl move', '/ search', 'u undo', ':vs add a column', ':set settings', ':help all keys']),
+    footer(['hjkl move', '/ search', 'u undo', ':vs add a column', ':help all keys']),
   );
 
   const state = {
@@ -623,12 +622,17 @@ function setLondon(on = !londonOnly()) {
   if (panel.open) fillPanel();
 }
 
-/** The line at the foot of the page: the keys, and how fresh the listings are. */
+/** The button that opens the settings drawer, as `:set` does. */
+function settings(): HTMLButtonElement {
+  return button('Settings', openPanel, { class: 'open-panel', 'aria-keyshortcuts': 'o' });
+}
+
+/** The line at the foot of the page: the site's name, the settings, the keys, and how fresh the listings are. */
 function footer(hints: string[]): HTMLElement {
   const stamp = db.ingested;
   const old = stamp !== null && Date.now() - Date.parse(stamp) > 8 * 86400000;
   return h('footer', {},
-    h('span', { class: 'keys' }, ...hints.flatMap((hint) => {
+    h('span', { class: 'keys' }, h('span', { class: 'name' }, home()), ' · ', settings(), '   ', ...hints.flatMap((hint) => {
       const [keys, ...words] = hint.split(' ');
       return [h('kbd', {}, keys), ` ${words.join(' ')}   `];
     })),
