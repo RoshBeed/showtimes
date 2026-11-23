@@ -55,7 +55,7 @@ jobs:
       # The changed file, failure records included, for Publish, the data release's only writer.
       - name: Hand the file to Publish
         if: ${{ always() && !inputs.validation && steps.ingest.outputs.changed == 'true' }}
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v7
         with:
           name: chain-${{ inputs.provider }}
           path: data/${{ inputs.provider }}.sqlite

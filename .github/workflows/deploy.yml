@@ -41,7 +41,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
       - name: Take this run's ingested files
         if: inputs.chains
-        uses: actions/download-artifact@v5
+        uses: actions/download-artifact@v8
         with:
           pattern: chain-*
           merge-multiple: true
