@@ -18,7 +18,7 @@
   Irish editions, or by two chains) are merged when their titles match apart from case and
   punctuation, into the listing with the most showings. Titles are cleaned first by Claude, not by
   hand-written rules (the user's decision, 2026-11-21): `showtimes-titles`
-  (`ingest/src/showtimes_ingest/titles.py`, Claude Opus 5.5) runs in each Publish run (`deploy.yml`), asks only about
+  (`ingest/src/showtimes_ingest/titles.py`, Claude Opus 5.5) runs in its own job of each Publish run (`deploy.yml`, before the site is built), asks only about
   titles it has not seen, and keeps its decisions in `titles.json` on the data release. Each
   decision is the film's own name, the year the title gives (remakes stay apart), and tags for what
   the rest said (format, language, festival or series, screening type, add-ons). The export reads
