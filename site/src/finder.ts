@@ -3,7 +3,7 @@
 // The visitor picks which columns to show and in what order, and all of it is in
 // the page's address, so a bookmark is a saved view. Driven by keys, clicks or taps.
 import { ics } from './calendar';
-import { expandArea, learnLondon, needsEveryCinema, PAGE, readView } from './choices';
+import { expandArea, learnLondon, needsEveryCinema, onlyPick, PAGE, pick, picked, readView } from './choices';
 import { KINDS, learnCinemas, LEAST_NEEDED, ordered, ORDERS, ordersOf, PARTS } from './columns';
 import { DATA, openListings } from './db';
 import { bar, button, facts, h, link } from './dom';
@@ -11,24 +11,13 @@ import { openPanel } from './drawer';
 import { clock, day, fullDate } from './format';
 import { note, noteNow, startHistory } from './history';
 import * as q from './queries';
-import { address, app, db, hidden, narrow, page, scope, setDb, setDrawn, setPage, setView, ticks, toggle, view } from './state';
+import { address, app, cursors, db, hidden, narrow, page, scope, setDb, setDrawn, setPage, setView, ticks, toggle, view } from './state';
 import { formats } from './tags';
-import { about } from './version';
 
 /** Whether `db` holds every cinema's showings, or only Greater London's. */
 let whole = false;
 let everything: Promise<void> | undefined;
 
-/** The title goes back to the default view, keeping the cinemas and films chosen in the settings. */
-function home(): HTMLElement {
-  const element = h('a', { href: location.pathname + location.search }, 'showtimes');
-  element.onclick = (event) => {
-    event.preventDefault();
-    if (location.hash) history.pushState(null, '', location.pathname + location.search);
-    render();
-  };
-  return element;
-}
 /** The link to book a showing on its chain's site, named after the site: `Book on odeon.co.uk`. */
 function bookingLink(show: { cinemaId: string; id: string }): Node[] {
   const url = q.booking(db, show);
@@ -50,6 +39,8 @@ export function addToCalendar(cinema: string, id: string) {
 }
 
 let fitting: ResizeObserver | undefined;
+/** The line each column was last clicked on, where a Shift-click range starts. */
+const anchors = new Map<q.Facet, string>();
 /** Change the columns themselves, then draw the finder again. */
 export function rebuild() {
   noteNow();
@@ -69,6 +60,8 @@ export function render() {
   if (!db) return; // still downloading; load() draws the page when it arrives
   learnCinemas();
   setView(readView(location.hash));
+  // A column whose marks are gone (undone, or the column closed) chooses as it moves again.
+  for (const facet of [...cursors.keys()]) if (!view.columns.includes(facet) || !picked(view, facet).length) cursors.delete(facet);
   view.focus = Math.min(view.focus, lastColumn());
   startHistory(); // where undo stops
   const columns = view.columns;
@@ -109,6 +102,13 @@ export function render() {
     h('div', { class: 'column showtimes' }, bar('Showtimes', ...finding(results), total), shows),
     detail,
   ];
+  // Clicking a column's heading or its empty space goes to it and shows its choices, changing nothing.
+  panes.slice(0, results + 1).forEach((pane, index) => pane.addEventListener('click', (event) => {
+    if ((event.target as Element).closest('li, button, input')) return;
+    view.focus = index;
+    mark();
+    pane.querySelector('.selected, .cursor')?.scrollIntoView({ block: 'nearest' });
+  }));
   panes[results].addEventListener('scroll', () => {
     const column = panes[results];
     if (state.rows.length < state.total && column.scrollTop + column.clientHeight > column.scrollHeight - 600) { state.more += 1; draw(); }
@@ -118,12 +118,11 @@ export function render() {
 
   document.title = 'showtimes';
   app.className = 'finder-page';
-  // No header: the footer names the site and opens the settings; on a phone, where the footer is
-  // hidden, the row of steps at the top ends with the settings.
+  // No header and no footer: the settings open with Esc, or with the button at the right of the
+  // details' heading, at the top right; on a phone, with the button that ends the row of steps at the top.
   app.replaceChildren(
     h('div', { class: 'topbar' }, steps, settings()),
     h('div', { class: 'columns finder' }, ...panes),
-    footer(['hjkl move', '/ search', 'u undo', ':vs add a column', ':help all keys']),
   );
 
   const state = {
@@ -154,22 +153,43 @@ export function render() {
       const counted = found.counts[index];
       const order = view.orders[facet] ?? 'name';
       let values = ordered(facet, [...counted.keys()], counted, order);
-      const picked = view.picks[facet];
-      if (picked && !values.includes(picked)) values.unshift(picked); // a choice the others have emptied stays in view
+      const chosen = picked(view, facet);
+      values.unshift(...chosen.filter((value) => !values.includes(value))); // a choice the others have emptied stays in view
       const needle = filters[index].toLowerCase();
-      if (needle) values = values.filter((value) => value === picked || KINDS[facet].label(value)[0].toLowerCase().includes(needle));
+      if (needle) values = values.filter((value) => chosen.includes(value) || KINDS[facet].label(value)[0].toLowerCase().includes(needle));
       // Days past the published week are set apart, once, instead of each saying so.
       const advance = facet === 'day' && order === 'name' && db.fullUntil ? values.find((value) => value !== 'weekend' && value > db.fullUntil!) : undefined;
       const all = [undefined, ...values];
       const heads = h('li', { class: 'heads', 'aria-hidden': 'true' }, h('span', {}), h('span', {}, typeof KINDS[facet].notes === 'function' ? (KINDS[facet].notes as () => string)() : KINDS[facet].notes ?? ''), h('span', {}, 'showings'));
       lists[index].replaceChildren(heads, ...all.flatMap((value) => {
         const [name, note] = value === undefined ? ['All', ''] : KINDS[facet].label(value);
-        const item = h('li', { class: [value === picked ? 'selected' : '', value === undefined ? 'pinned' : ''].join(' '), title: name },
+        const on = value === undefined ? !chosen.length : chosen.includes(value);
+        const item = h('li', { class: [on ? 'selected' : '', value === undefined ? 'pinned' : ''].join(' '), title: name },
           h('strong', {}, name),
           h('span', { class: 'dim' }, note),
           h('span', { class: 'dim count' }, value === undefined ? '' : (counted.get(value) ?? 0).toLocaleString('en-GB')));
-        item.onclick = () => {
+        // Shift-click would select the text; a range is meant instead.
+        item.onmousedown = (event) => { if (event.shiftKey) event.preventDefault(); };
+        item.onclick = (event) => {
           view.focus = index;
+          if (value !== undefined && (event.shiftKey || event.ctrlKey || event.metaKey)) {
+            // Shift: every line from the last one clicked to this one. Ctrl or Cmd: this one added or taken away.
+            const from = anchors.get(facet);
+            const lines = all.slice(1) as string[];
+            cursors.set(facet, all.indexOf(value)); // lines are marked: j and k now move without choosing
+            if (event.shiftKey) {
+              const [a, b] = [lines.indexOf(from ?? value), lines.indexOf(value)].map((at) => (at < 0 ? lines.indexOf(value) : at));
+              chooseMany(facet, lines.slice(Math.min(a, b), Math.max(a, b) + 1));
+            } else {
+              anchors.set(facet, value);
+              const next = chosen.includes(value) ? chosen.filter((each) => each !== value) : [...chosen, value];
+              if (!next.length) cursors.delete(facet);
+              chooseMany(facet, next);
+            }
+            return;
+          }
+          if (value !== undefined) anchors.set(facet, value);
+          cursors.delete(facet); // a plain click chooses one line, as moving does again
           choose(facet, value);
           if (narrow.matches) { view.focus = index + 1; mark(); } // on a phone any choice, All too, moves on
         };
@@ -184,15 +204,15 @@ export function render() {
     view.row = Math.min(view.row, Math.max(state.rows.length - 1, 0));
     total.textContent = state.total.toLocaleString('en-GB');
     // In date order the showtimes are headed day by day, unless one day is chosen.
-    const oneDay = Boolean(view.picks.day && view.picks.day !== 'weekend');
+    const oneDay = Boolean(onlyPick(view, 'day') && onlyPick(view, 'day') !== 'weekend');
     const headed = view.sort === 'date' && !view.descending && !oneDay;
     // Each showtime is a row of parts under headings. A part that is the same in every row is left out:
     // the day under day headings, the film or cinema when one is chosen.
     const parts = [
       ...(headed || oneDay ? [] : ['day' as const]),
       'time' as const,
-      ...(view.picks.film ? [] : ['film' as const]),
-      ...view.fields.filter((field) => !(field === 'cinema' && view.picks.cinema)),
+      ...(onlyPick(view, 'film') ? [] : ['film' as const]),
+      ...view.fields.filter((field) => !(field === 'cinema' && onlyPick(view, 'cinema'))),
     ];
     // The film sits after the time and its end, before the rest.
     const film = parts.indexOf('film');
@@ -212,7 +232,7 @@ export function render() {
         const item = h('li', { class: ['show', index === view.row ? 'selected' : '', row.soldOut ? 'sold' : ''].join(' ') },
           ...parts.map((part) => {
             const text = PARTS[part].text(row);
-            return part === 'film' || (part === 'time' && view.picks.film)
+            return part === 'film' || (part === 'time' && onlyPick(view, 'film'))
               ? h('strong', { class: part }, text, ...(row.soldOut && part !== 'time' ? [h('span', { class: 'dim' }, ' sold out')] : []))
               : h('span', { class: part === 'time' ? 'time' : `${part} dim`, title: text }, text);
           }));
@@ -254,28 +274,40 @@ export function render() {
     panes.forEach((pane, index) => pane.classList.toggle('focused', index === view.focus));
     shows.querySelector('.selected')?.classList.remove('selected');
     shows.querySelectorAll('li.show')[view.row]?.classList.add('selected');
+    // Where lines are marked, the line in hand is outlined: the cursor j and k move.
+    columns.forEach((facet, index) => {
+      lists[index].querySelector('.cursor')?.classList.remove('cursor');
+      const at = cursors.get(facet);
+      if (at !== undefined) lists[index].querySelectorAll('li:not(.heads):not(.note)')[at]?.classList.add('cursor');
+    });
+    lists[view.focus]?.querySelector('.cursor')?.scrollIntoView({ block: 'nearest' });
     for (const pane of panes) pane.querySelector('.selected')?.scrollIntoView({ block: 'nearest' });
     steps.replaceChildren(...[...columns, 'showtimes', 'details'].map((name, index) => {
       const facet = columns[index];
-      const picked = facet && view.picks[facet];
-      const label = facet ? `${KINDS[facet].title}: ${picked ? KINDS[facet].label(picked)[0] : 'All'}` : index === results ? `Showtimes ${state.total}` : 'Details';
+      const chosen = facet ? picked(view, facet) : [];
+      const label = facet ? `${KINDS[facet].title}: ${chosen.length ? KINDS[facet].label(chosen[0])[0] + (chosen.length > 1 ? ` +${chosen.length - 1}` : '') : 'All'}` : index === results ? `Showtimes ${state.total}` : 'Details';
       const step = button(label, () => { view.focus = index; mark(); }, { class: index === view.focus ? 'here' : '' });
       if (name === 'details' && !state.rows.length) step.disabled = true;
       return step;
     }));
     steps.querySelector('.here')?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
     const shown = state.rows[view.row];
-    const film = shown ? q.film(db, shown.filmId) : view.picks.film ? q.film(db, view.picks.film) : null;
+    const one = onlyPick(view, 'film');
+    const film = shown ? q.film(db, shown.filmId) : one ? q.film(db, one) : null;
     detail.replaceChildren(
       ...(shown ? showingDetails(shown) : film ? [bar(film.title)] : [bar('Details'), quickStart()]),
       ...(film ? filmDetails(film) : []),
     );
+    detail.querySelector('.bar')?.append(settings()); // top right of the page, on the line of the column titles
     note();
   }
 
   function choose(facet: q.Facet, value: string | undefined) {
-    if (value === undefined) delete view.picks[facet];
-    else view.picks[facet] = value;
+    chooseMany(facet, value === undefined ? [] : [value]);
+  }
+  /** Several values chosen in a column, of which a showing must offer any; none is All. */
+  function chooseMany(facet: q.Facet, values: string[]) {
+    pick(view, facet, values);
     view.row = 0;
     state.more = 0;
     draw();
@@ -283,8 +315,8 @@ export function render() {
 
   /** A double bill: choose its film (and keep the cinema and day), and highlight it. */
   function follow(next: q.Neighbour) {
-    if (columns.includes('film')) view.picks.film = next.filmId;
-    if (view.picks.day && view.picks.day !== next.date) view.picks.day = next.date;
+    if (columns.includes('film')) pick(view, 'film', [next.filmId]);
+    if (view.picks.day && !view.picks.day.includes(next.date)) pick(view, 'day', [next.date]);
     view.row = 0;
     state.more = 0;
     draw();
@@ -380,8 +412,8 @@ function quickStart(): Node {
   return h('div', { class: 'intro' },
     h('p', {}, `What's on at ${db.chains.size ? [...db.chains.values()].map((chain) => chain.name).join(', ') : 'the cinema'}, on which screen, and how big that screen is.`),
     facts([
-      ['Choose', 'a day, a film, a cinema… in any column; each counts what the others leave. All at the top takes a choice back.'],
-      ['Columns', 'Settings adds, removes and orders them; so do :vs day, :q, << and >>.'],
+      ['Choose', 'a day, a film, a cinema… in any column; each counts what the others leave. Shift-click picks a run of lines, Ctrl- or Cmd-click one more. All at the top takes them back.'],
+      ['Columns', 'Settings (Esc) adds, removes and orders them; so do :vs day, :q, << and >>.'],
       ['Keys', 'it is driven as vim is: hjkl, / and n, :set, :sort, u and the rest. :help lists them all.'],
       ['Bookmark', 'the columns, your choices and your cinemas are all in the page address. Bookmark it and it opens the same way anywhere.'],
     ]));
@@ -389,29 +421,13 @@ function quickStart(): Node {
 
 export function hideFilm(id: string) {
   toggle(hidden, [id]);
-  if (view.picks.film === id) delete view.picks.film;
+  pick(view, 'film', picked(view, 'film').filter((film) => film !== id));
   page?.draw();
 }
 
 /** The button that opens the settings drawer, as `:set` does. */
 function settings(): HTMLButtonElement {
-  return button('Settings', openPanel, { class: 'open-panel', 'aria-keyshortcuts': 'o' });
-}
-
-/** The line at the foot of the page: the site's name, the settings, the keys, and how fresh the listings are. */
-function footer(hints: string[]): HTMLElement {
-  const stamp = db.ingested;
-  const old = stamp !== null && Date.now() - Date.parse(stamp) > 8 * 86400000;
-  return h('footer', {},
-    h('span', { class: 'keys' }, h('span', { class: 'name' }, home()), ' · ', settings(), '   ', ...hints.flatMap((hint) => {
-      const [keys, ...words] = hint.split(' ');
-      return [h('kbd', {}, keys), ` ${words.join(' ')}   `];
-    })),
-    h('span', { class: 'status' },
-      `listings from ${stamp ? day(stamp) : 'no ingest yet'}`,
-      ...(db.fullUntil ? [` · full to ${day(db.fullUntil)}`] : []),
-      ...(old ? [h('span', { class: 'stale' }, ' · more than a week old')] : []),
-      ' · ', about()));
+  return button('Settings', openPanel, { class: 'open-panel', title: 'Settings (Esc)', 'aria-keyshortcuts': 'Escape' });
 }
 
 function load(all: boolean): Promise<void> {

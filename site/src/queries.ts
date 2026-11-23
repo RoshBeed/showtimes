@@ -353,7 +353,8 @@ export const FACETS = [
 ] as const;
 export type Facet = (typeof FACETS)[number];
 /** One choice per column; a column left out means all. */
-export type Picks = Partial<Record<Facet, string>>;
+/** What is chosen in each column: one value or several, of which a showing must offer any. */
+export type Picks = Partial<Record<Facet, string[]>>;
 
 const certificate = (film: Film) => film.certificate || 'TBC';
 const tagged = (kind: TagKind) => (show: Show) => show.experiences.filter((tag) => tagKind(tag) === kind);
@@ -408,8 +409,13 @@ function keysOf(l: Listings, facet: Facet, today: string): Keys {
  *  in start order. A search narrows the showings, not the counts. */
 export function find(l: Listings, scope: Scope, facets: Facet[], picks: Picks, text = ''): { counts: Map<string, number>[]; shows: Show[] } {
   const keys = facets.map((facet) => keysOf(l, facet, scope.today));
-  // A choice the column has never seen matches nothing: -2, which no showing offers.
-  const wanted = facets.map((facet, column) => (picks[facet] === undefined ? -1 : (keys[column].names.indexOf(picks[facet]!) + 1 || -1) - 1));
+  // What each column asks for, as its value numbers, or null for anything. A choice the column
+  // has never seen matches nothing, so a column asking only for those matches no showing.
+  const wanted = facets.map((facet, column) => {
+    const chosen = picks[facet];
+    if (!chosen?.length) return null;
+    return chosen.map((value) => keys[column].names.indexOf(value)).filter((id) => id >= 0);
+  });
   const tallies = keys.map((column) => new Float64Array(column.names.length));
   // A column about the film (its people, say) is counted per film and spread after:
   // one tally a showing instead of one for each of its film's many people.
@@ -432,7 +438,8 @@ export function find(l: Listings, scope: Scope, facets: Facet[], picks: Picks, t
     let failed = -1;
     let failures = 0;
     for (let column = 0; column < facets.length && failures < 2; column += 1) {
-      if (wanted[column] !== -1 && !keys[column].ids[show.index].includes(wanted[column])) {
+      const asked = wanted[column];
+      if (asked && !keys[column].ids[show.index].some((id) => asked.includes(id))) {
         failures += 1;
         failed = column;
       }

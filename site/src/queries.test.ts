@@ -68,9 +68,14 @@ describe('queries', () => {
       ids: ['155-1', '155-2', '001-1'],
     });
     // Choosing a film narrows the days and cinemas, but not the list of films itself.
-    expect(found(['day', 'film', 'cinema'], { film: 'odeon-F2' }).counts).toEqual({ day: { '2026-11-14': 1, weekend: 1 }, film: { 'odeon-F1': 2, 'odeon-F2': 1 }, cinema: { 'odeon-155': 1 } });
-    expect(found(['film', 'picture', 'cinema'], { picture: 'IMAX', cinema: 'odeon-001' })).toEqual({ counts: { film: {}, picture: {}, cinema: { 'odeon-155': 1 } }, ids: [] });
-    expect(found(['day'], { day: 'weekend' }).ids).toEqual(['155-2']);
+    expect(found(['day', 'film', 'cinema'], { film: ['odeon-F2'] }).counts).toEqual({ day: { '2026-11-14': 1, weekend: 1 }, film: { 'odeon-F1': 2, 'odeon-F2': 1 }, cinema: { 'odeon-155': 1 } });
+    expect(found(['film', 'picture', 'cinema'], { picture: ['IMAX'], cinema: ['odeon-001'] })).toEqual({ counts: { film: {}, picture: {}, cinema: { 'odeon-155': 1 } }, ids: [] });
+    expect(found(['day'], { day: ['weekend'] }).ids).toEqual(['155-2']);
+    // Several choices in a column: a showing offering any of them, and each other column counted with them.
+    expect(found(['film', 'cinema'], { cinema: ['odeon-155', 'odeon-001'] }).ids).toEqual(found(['film', 'cinema']).ids);
+    expect(found(['day', 'film'], { film: ['odeon-F1', 'odeon-F2'] }).counts.film).toEqual(found(['day', 'film']).counts.film);
+    expect(found(['film'], { film: ['odeon-F2', 'no-such-film'] }).ids).toEqual(found(['film'], { film: ['odeon-F2'] }).ids);
+    expect(found(['film'], { film: ['no-such-film'] }).ids).toEqual([]);
   });
 
   test('the columns made from the film: certificate, genre, people, distributor and release', () => {
@@ -81,7 +86,7 @@ describe('queries', () => {
       distributor: { Warner: 2 },
       release: { out: 3 },
     });
-    expect(found(['person'], { person: 'Denis Villeneuve' }).ids).toEqual(['155-1', '001-1']);
+    expect(found(['person'], { person: ['Denis Villeneuve'] }).ids).toEqual(['155-1', '001-1']);
     expect(found(['release'], {}, { ...scope, today: '2026-11-01' }).counts.release).toEqual({ soon: 2, out: 1 });
   });
 
@@ -92,7 +97,7 @@ describe('queries', () => {
       location: { 'Greater London': 2, Aberdeen: 1 },
     });
     expect(q.screenOf(db, 'odeon-155/155-1')).toEqual({ cinema: 'West End', screen: 'Screen 1', capacity: 300 });
-    expect(found(['seat'], { seat: 'Recliner Saver' }).ids).toEqual([]);
+    expect(found(['seat'], { seat: ['Recliner Saver'] }).ids).toEqual([]);
   });
 
   test('ticked cinemas and hidden films narrow every column', () => {
@@ -145,7 +150,7 @@ describe('queries', () => {
     screening('001-4', '001', 'F5', '2026-11-12', '09:00', { experiences: '["3D - Web "]' }); // private hire, and names that end in a space
     db = q.open(exportListings([{ chain: odeon, sqlite }]));
     expect(q.film(db, 'odeon-F5')!.genres).toEqual(['Musical']);
-    expect(found(['picture'], { picture: '3D' }).ids).toEqual(['001-4']); // ODEON's "3D - Web ", as the chain names it
+    expect(found(['picture'], { picture: ['3D'] }).ids).toEqual(['001-4']); // ODEON's "3D - Web ", as the chain names it
     const quiet = { ...scope, noEvents: true };
     expect(found(['film'], {}, quiet).counts.film).toEqual({ 'odeon-F1': 3, 'odeon-F2': 1 });
     expect(found(['film']).counts.film).toEqual({ 'odeon-F1': 3, 'odeon-F2': 1, 'odeon-F4': 3, 'odeon-F5': 1 });

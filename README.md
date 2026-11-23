@@ -14,11 +14,12 @@ Phoenix and ActOne, in one place. Listings are refreshed every week.
 
 ## Finding a film
 
-- **Choose your cinemas** in **Settings** (in the footer; on a phone, at the end of the top row): every cinema, London only, or
+- **Choose your cinemas** in **Settings** (press Esc, or the Settings button at the top right; on a phone, the end of the top row): every cinema, London only, or
   the ones you go to.
 - **Narrow it down** by picking in the columns: cinema, film, day, and any others you
   add in Settings, such as screen size, picture format, language or accessibility.
-  Each column counts what the others leave.
+  Each column counts what the others leave. Pick several in one column with Shift-click
+  (a run of lines) or Ctrl/Cmd-click (one more), and a showing matching any of them is shown.
 - **Pick a showtime** to see its screen and seats, double bills, synopsis, ratings
   and trailer. **Book on …** takes you to the cinema's own booking page, and you can
   add the showing to your calendar.

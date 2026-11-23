@@ -84,10 +84,17 @@
   column a visitor can add (`FACETS` in `queries.ts`; `q.find` counts each column with the
   others' choices applied). What is shown at all is in the query string
   (`?cinemas=london&hidden=…&show=events`; Greater London ticked whole is written `london`),
-  and the view in the hash (`#cols=day,film,screen&film=…&order=film:rating&col=2&row=5`),
+  and the view in the hash (`#cols=day,film,screen&film=…&film=…&order=film:rating&col=2&row=5`;
+  a column with several choices repeats its name, and a showing matches any of them: Shift-click
+  a range, Ctrl/Cmd-click one more, or the keys of ranger and lf: Space marks the line and moves
+  down, `V` marks a range, and a column with marks has a free cursor (`cursors` in `state.ts`), so
+  j and k move without choosing until Space on All clears them. A column's heading or empty space,
+  clicked, goes to it and changes nothing),
   so a bookmark is a saved view; the default view has no hash at all. `fields=` picks what each
   showtime row shows (`FIELDS` in `choices.ts`), and rows too wide for their column leave out the
-  least needed first. Nothing is stored in the browser. The default view is Cinema then
+  least needed first. There is no header or footer: Esc (with nothing half-typed) or the button
+  at the right of the details' heading (top right of the page) opens the settings, a window floating over the columns,
+  which also says how fresh the listings are and which version is running. Nothing is stored in the browser. The default view is Cinema then
   Film, over every cinema. On a phone one column shows at a time.
 - The keys are vim's and nothing else: normal mode, ex commands (`:set`, `:sort`, `:vs`, `:q`,
   `:filter`) and `/` `?` searches on the command line. `NORMAL`, `EX` and `DRAWER` in `cmdline.ts`

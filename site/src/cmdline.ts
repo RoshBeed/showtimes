@@ -16,7 +16,7 @@ import { about } from './version';
 
 /** Normal mode, for :help. */
 const NORMAL: [string, string][] = [
-  ['h l  ← →', 'The column to the left or right; also w b, Backspace Space'],
+  ['h l  ← →', 'The column to the left or right; also w b, Backspace'],
   ['j k  ↓ ↑', 'Down or up a line: choose in a column, or move through the showtimes'],
   ['Enter  -', 'Into the next column, or back out of it, as in netrw'],
   ['0 ^  $', 'The first column, or the showtimes'],
@@ -33,11 +33,13 @@ const NORMAL: [string, string][] = [
   ['dd', 'Hide the film everywhere'],
   ['yy', 'Yank (copy) the link to this view'],
   ['u  Ctrl-r', 'Undo or redo'],
+  ['Space', 'Mark or unmark the line and move down, as in ranger or lf; on All, clear the marks. Then j k move without choosing'],
+  ['V', 'Visual line: j k G gg mark every line from where V was pressed, added to any marks; Esc or Enter keeps them'],
   ['m{a-z}', 'Mark this view; then ‘{a-z} or `{a-z} comes back to it'],
   ['gx', 'Open the showing on its cinema\u2019s site to book it'],
   ['K', 'Play the film’s trailer'],
   ['Ctrl-g', 'Where you are'],
-  ['Esc', 'Cancel a count or a half-typed command'],
+  ['Esc', 'Cancel a count or a half-typed command; with nothing to cancel, open the settings'],
 ];
 /** Ex commands, for :help. */
 const EX: [string, string][] = [
@@ -47,7 +49,7 @@ const EX: [string, string][] = [
   [':sort  :sort n  :sort rating', 'Order a column A–Z, by showings, or (films) by rating'],
   [':sort {by}  :sort! {by}', 'Order the showtimes by date, time, film, cinema, screen or seats; ! reverses'],
   [':filter {text}', 'Keep only the lines with that text; :filter alone shows them all again'],
-  [':set', 'Settings'],
+  [':set  Esc', 'Settings'],
   [':set london  nolondon  london!', 'London only on, off, or switched'],
   [':set events  noevents', 'Event cinema shown or left out'],
   [':set fields=…  fields+=ends  fields-=picture  fields&', 'What each showtime shows (ends, picture, language, access, cert, cinema, screen, seats); & is the default'],
@@ -67,7 +69,7 @@ const DRAWER: [string, string][] = [
   ['i', 'Type in the cinema search; Esc leaves it'],
   ['dd  <<  >>', 'Remove a column, or move it left or right'],
   ['u  Ctrl-r', 'Undo or redo'],
-  ['q  Esc  :q', 'Close the drawer'],
+  ['q  Esc  :q', 'Close the settings'],
 ];
 export const help = h('dialog', { class: 'panel keylist', 'aria-label': 'Help' }) as HTMLDialogElement;
 help.addEventListener('click', (event) => { if (event.target === help) help.close(); });
