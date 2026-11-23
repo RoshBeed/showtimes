@@ -99,7 +99,7 @@ export function render() {
   const detail = h('div', { class: 'column details' });
   const panes = [
     ...columns.map((facet, index) => h('div', { class: `column ${facet}` }, bar(KINDS[facet].title, ...finding(index), sorters[index]), lists[index])),
-    h('div', { class: 'column showtimes' }, bar('Showtimes', ...finding(results), total, settings()), shows),
+    h('div', { class: 'column showtimes' }, bar('Showtimes', ...finding(results), total), shows),
     detail,
   ];
   // Clicking a column's heading or its empty space goes to it and shows its choices, changing nothing.
@@ -119,7 +119,7 @@ export function render() {
   document.title = 'showtimes';
   app.className = 'finder-page';
   // No header and no footer: the settings open with Esc, or with the button at the right of the
-  // showtimes' heading; on a phone, with the button that ends the row of steps at the top.
+  // details' heading, at the top right; on a phone, with the button that ends the row of steps at the top.
   app.replaceChildren(
     h('div', { class: 'topbar' }, steps, settings()),
     h('div', { class: 'columns finder' }, ...panes),
@@ -298,6 +298,7 @@ export function render() {
       ...(shown ? showingDetails(shown) : film ? [bar(film.title)] : [bar('Details'), quickStart()]),
       ...(film ? filmDetails(film) : []),
     );
+    detail.querySelector('.bar')?.append(settings()); // top right of the page, on the line of the column titles
     note();
   }
 

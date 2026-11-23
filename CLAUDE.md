@@ -93,7 +93,7 @@
   so a bookmark is a saved view; the default view has no hash at all. `fields=` picks what each
   showtime row shows (`FIELDS` in `choices.ts`), and rows too wide for their column leave out the
   least needed first. There is no header or footer: Esc (with nothing half-typed) or the button
-  at the right of the showtimes' heading opens the settings, a window floating over the columns,
+  at the right of the details' heading (top right of the page) opens the settings, a window floating over the columns,
   which also says how fresh the listings are and which version is running. Nothing is stored in the browser. The default view is Cinema then
   Film, over every cinema. On a phone one column shows at a time.
 - The keys are vim's and nothing else: normal mode, ex commands (`:set`, `:sort`, `:vs`, `:q`,

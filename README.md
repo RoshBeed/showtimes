@@ -14,7 +14,7 @@ Phoenix and ActOne, in one place. Listings are refreshed every week.
 
 ## Finding a film
 
-- **Choose your cinemas** in **Settings** (press Esc, or the button at the right of the showtimes' heading; on a phone, the end of the top row): every cinema, London only, or
+- **Choose your cinemas** in **Settings** (press Esc, or the Settings button at the top right; on a phone, the end of the top row): every cinema, London only, or
   the ones you go to.
 - **Narrow it down** by picking in the columns: cinema, film, day, and any others you
   add in Settings, such as screen size, picture format, language or accessibility.

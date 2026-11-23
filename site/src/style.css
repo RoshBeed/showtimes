@@ -110,7 +110,7 @@ li.heads button:hover, li.heads button.on { color: var(--accent); }
 
 /* Settings: a drawer at the right, so the finder shows each change behind it. */
 .panel { margin: 7vh auto auto; width: min(760px, 94vw); max-width: none; max-height: 86dvh; background: var(--bg); color: var(--text); border: 1px solid var(--line); border-radius: 8px; box-shadow: 0 18px 60px rgba(0, 0, 0, 0.55); padding: 0 22px 18px; }
-/* The showtimes' heading ends with the settings. */
+/* The details' heading, at the top right of the page, ends with the settings. */
 .bar .open-panel { margin-left: 6px; color: var(--accent); border-color: var(--accent); padding: 1px 8px; }
 .panel .status { margin: 14px 0 0; }
 .panel .status a { color: inherit; }
