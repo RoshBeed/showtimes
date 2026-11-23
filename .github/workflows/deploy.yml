@@ -20,9 +20,11 @@ permissions:
   pages: write
   id-token: write
 jobs:
-  # Built and deployed in two jobs, as GitHub's own Pages workflow does: a deploy in the same job
-  # as its upload sometimes looked for the artifact before GitHub listed it ("Found 0 artifact(s)").
-  build:
+  # Three jobs: Claude cleans the titles across every chain's listings, then the site is built from
+  # the listings and those titles, then it is deployed. Only the titles job may sign in to Claude or
+  # write to the data release. Build and deploy are apart as in GitHub's own Pages workflow: a
+  # deploy in the same job as its upload sometimes looked for the artifact before GitHub listed it.
+  titles:
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     permissions:
@@ -82,23 +84,33 @@ jobs:
             bash scripts/listings.sh upload-titles
           fi
           exit "$status"
+  build:
+    needs: titles
+    if: needs.titles.outputs.published == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pages: read
+    steps:
+      - uses: actions/checkout@v7
+      - name: Fetch the listings and the titles Claude decided
+        run: |
+          bash scripts/listings.sh download
+        env:
+          GH_TOKEN: ${{ github.token }}
       # Every chain's file, exported as the compressed JSON document the site downloads.
       - name: Build the site in Docker
-        if: steps.listings.outputs.published == 'true'
         run: |
           # The commit and branch, for the version the site shows (site/src/version.ts).
           docker run --rm -v "$PWD:/work" -w /work/site -e GITHUB_SHA -e GITHUB_REF_NAME \
             --mount type=volume,target=/work/site/node_modules,volume-nocopy \
             node:26-bookworm-slim sh -c 'npm ci && npm run listings && npm run build'
       - uses: actions/configure-pages@v6
-        if: steps.listings.outputs.published == 'true'
       - uses: actions/upload-pages-artifact@v5
-        if: steps.listings.outputs.published == 'true'
         with:
           path: site/dist
   deploy:
     needs: build
-    if: needs.build.outputs.published == 'true'
     runs-on: ubuntu-latest
     environment:
       name: github-pages
