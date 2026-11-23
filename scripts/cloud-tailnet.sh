@@ -23,12 +23,14 @@ if ts status >/dev/null 2>&1; then
   exit 0
 fi
 
+# Not answering: start it afresh. A session that was paused and resumed keeps the socket
+# file of a tailscaled that no longer runs, and the daemon reads the proxy when it starts.
 mkdir -p "$state"
-if [ ! -S "$socket" ]; then
-  setsid nohup tailscaled --tun=userspace-networking --statedir="$state" --socket="$socket" \
-    >"$state/tailscaled.log" 2>&1 </dev/null &
-  for _ in $(seq 50); do [ -S "$socket" ] && break; sleep 0.1; done
-fi
+pkill -f -- "--socket=$socket" 2>/dev/null || true
+rm -f "$socket"
+setsid nohup tailscaled --tun=userspace-networking --statedir="$state" --socket="$socket" \
+  >"$state/tailscaled.log" 2>&1 </dev/null &
+for _ in $(seq 50); do [ -S "$socket" ] && break; sleep 0.1; done
 
 if ts up --hostname=showtimes-cloud --auth-key=file:/dev/stdin --timeout=30s \
   <<<"$TS_AUTHKEY" >"$state/up.log" 2>&1; then
