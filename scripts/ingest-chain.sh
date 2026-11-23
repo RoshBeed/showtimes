@@ -24,7 +24,9 @@ if [ "$command" = run ] || [ "$due" = 0 ]; then
 elif [ "$due" != 3 ]; then
   status=$due
 fi
-bash scripts/ingest.sh "$chain" ratings || status=$?
+# Ratings are optional (OMDb's free key allows 1,000 lookups a day): a failure is a warning,
+# recorded in the file, never the chain's failure. The next run fills in what is missing.
+bash scripts/ingest.sh "$chain" ratings || echo "::warning::$chain: ratings not updated (see the log)"
 if [ -n "${GITHUB_STEP_SUMMARY:-}" ]; then
   {
     printf '### %s ingestion\n\n```json\n' "$chain"
