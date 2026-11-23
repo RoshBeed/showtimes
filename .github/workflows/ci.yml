@@ -24,7 +24,6 @@ jobs:
     uses: ./.github/workflows/ingest-provider.yml
     with:
       provider: odeon
-      workflow: ci.yml
       browser: true
       validation: true
   site:

@@ -44,20 +44,26 @@
   one fallback to a real browser (`vista_browser.py`), the user's choice on 2026-11-20.
   Everyman and Showcase share one adapter for Webedia's boxoffice platform
   (`chains/boxoffice.py`, `site/src/chains/boxoffice.ts`). Every chain shares the lifecycle in
-  `refresh.py` and has its own workflow (`ingest-<chain>.yml` on `ingest-provider.yml`); they
-  run side by side, the tailnet ones each as an ephemeral device `ingest-<chain>`.
+  `refresh.py`. One workflow, Listings (`listings.yml`), runs the week: `plan` asks `policy.py`
+  which chains are due (`scripts/due.sh`), `ingest` runs each due chain side by side
+  (`ingest-provider.yml`, flags from `.github/chains.json`; the tailnet ones each as an ephemeral
+  device `ingest-<chain>`) and hands its changed file on as an artifact, then `publish` calls
+  `deploy.yml`, the data release's only writer, which publishes those files, cleans new titles
+  and builds the site.
 - Collection is weekly, not daily (the user's decision on 2026-11-20): each chain is due once per
   window in `policy.py` (ODEON Wednesday 21:00, Everyman Wednesday 06:00, the rest Tuesday 06:00,
-  London time), and its workflow's cron runs at that window and twice more an hour later. Keep the
-  crons and `policy.py` in step. An ingest publishes only its file on the data release; Publish
-  (`deploy.yml`) builds every file into the site on its own schedule after each window (Tuesday and
-  Wednesday 09:41, Thursday 02:41 UTC; keep it after the ingest crons), on a push to `main`, or by
-  hand, which is how a manual ingest reaches the site.
+  London time), and Listings' crons run at each window and twice more an hour later (a chain
+  already stored is left out without contacting it). Keep the crons and `policy.py` in step.
+  Publish also runs alone on a push to `main` or by hand, building the release's files as they are.
 - Keep every chain's traffic minimal: one ingest per published week, no retry loops, and never
   fetch per-screening live data. Tests use a fake of each chain. ODEON's traffic goes through
   the owner's tailnet (`scripts/via-tailnet.sh`) with the auth key `TAILSCALE_AUTHKEY`, tagged
   `tag:ingest` (generic, not ODEON's: the user's decision on 2026-11-22); that tag's rights
-  are set in the tailnet's policy, so leave them as they are.
+  are set in the tailnet's policy, so leave them as they are. Two parts of the ingest get past
+  the chains' own defences, as the owner's conscious choice (2026-11-23): ODEON, Vue,
+  Picturehouse and Curzon refuse cloud addresses and are reached through the owner's home exit
+  node, and Cineworld and Curzon are read with curl-impersonate, which presents Chrome's TLS
+  fingerprint. The other rules still hold: never pass a challenge or CAPTCHA, and one ingest a week.
 - There is no server and no secret in the site. The site is one finder (`site/src/main.ts`):
   columns of choices, then the showtimes, then the details. Every page the site once had is a
   column a visitor can add (`FACETS` in `queries.ts`; `q.find` counts each column with the
@@ -133,11 +139,10 @@
   `store.py` schema and offering what `chains/__init__.py` lists (`NAME`, `check`, `ingest`,
   `settled_reason`, `search_title`), added to `CHAINS` with tests against a fake; a chain on a
   platform another uses needs only its name and website (`chains/everyman/`). (2) A
-  `site/src/chains/<chain>.ts` implementing `Chain`, added to `CHAINS` in `index.ts`. (3) An
-  `ingest-<chain>.yml` on `ingest-provider.yml` at its weekly window (`browser`, `via-tailnet` as
-  needed), the chain in `ingest.yml`'s dispatcher. Check first that
-  the chain's terms allow it.
-- Runs by hand: `ingest-<chain>.yml` or the dispatcher `ingest.yml` (`provider=all`), with
+  `site/src/chains/<chain>.ts` implementing `Chain`, added to `CHAINS` in `index.ts`. (3) A row in
+  `.github/chains.json` (`browser`, `tailnet` as needed), and its window in `policy.py` (with a
+  Listings cron if the window is new). Check first that the chain's terms allow it.
+- Runs by hand: Listings (`listings.yml`) with `chains=all` or chain names, and
   `command=check` (ingests only if the week is not stored; contacts nobody otherwise) or `run`
   (ingests now: only when needed, as it adds to the chain's traffic). A failure is recorded in the
   chain's file and retried at the next check, at most three times a week. The site needs the
@@ -147,4 +152,5 @@
 - Repository settings: secrets `TAILSCALE_AUTHKEY` and `OMDB_API_KEY` (optional, IMDb and
   Metacritic scores); variables `TAILSCALE_EXIT_NODE`, `ODEON_CINEMAS` (optional, comma-separated
   site IDs; empty is every cinema), and `ODEON_INGEST`, `CHAINS_INGEST` (every other chain) or
-  `<CHAIN>_INGEST` set to `false` to pause schedules.
+  `<CHAIN>_INGEST` set to `false` to pause a chain on schedule (read by `scripts/due.sh`; a run by
+  hand ignores them).

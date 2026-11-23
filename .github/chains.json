@@ -1,0 +1,17 @@
+[
+  { "chain": "odeon", "browser": true, "tailnet": true },
+  { "chain": "vue", "browser": true, "tailnet": true },
+  { "chain": "picturehouse", "browser": true, "tailnet": true },
+  { "chain": "curzon", "browser": true, "tailnet": true },
+  { "chain": "cineworld", "browser": true, "tailnet": false },
+  { "chain": "everyman", "browser": false, "tailnet": false },
+  { "chain": "showcase", "browser": false, "tailnet": false },
+  { "chain": "light", "browser": false, "tailnet": false },
+  { "chain": "olympic", "browser": false, "tailnet": false },
+  { "chain": "reel", "browser": false, "tailnet": false },
+  { "chain": "princecharles", "browser": false, "tailnet": false },
+  { "chain": "rio", "browser": false, "tailnet": false },
+  { "chain": "lexi", "browser": false, "tailnet": false },
+  { "chain": "phoenix", "browser": false, "tailnet": false },
+  { "chain": "actone", "browser": false, "tailnet": false }
+]
