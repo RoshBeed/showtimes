@@ -3,9 +3,11 @@
 Publish runs this after Claude has cleaned the titles: each film is known by its clean
 title and the year the title gives, so a film shown by five chains, or listed once per
 format, is looked up once. OMDb identifies it (and gives its Metacritic score); IMDb's own
-ratings file, read again at each run, gives the fresher IMDb score. What OMDb said is kept
-in <folder>/ratings.json on the data release, so OMDb is asked only about films it has not
-seen (and again about a film it did not find, after four weeks). The export reads it.
+ratings file, read again at each run, gives the fresher IMDb score. <folder>/ratings.json on
+the data release keeps both halves: "films", what OMDb said of each film (so OMDb is asked only
+about films it has not seen, and again about one it did not find after four weeks), and
+"titles", each raw title as the chains list it with its film's scores, which the export reads
+just as it reads titles.json, with no key of its own to keep in step.
 
     showtimes-ratings <folder> [overrides.json]
 """
@@ -28,7 +30,7 @@ RETRY_MISSING = timedelta(weeks=4)
 
 
 def title_key(title):
-    """As site/src/titles.ts's titleKey: case, accents, punctuation and spacing set aside."""
+    """A film's clean title with case, accents, punctuation and spacing set aside."""
     text = unicodedata.normalize("NFD", title.lower())
     return "".join(
         c for c in text if c.isalnum() and not unicodedata.category(c).startswith("M")
@@ -36,13 +38,14 @@ def title_key(title):
 
 
 def film_key(title, year):
-    """How the export finds a film's scores: its clean title, and the year the title gives."""
+    """One film for OMDb: its clean title, and the year the title gives (remakes apart)."""
     return f"{title_key(title)}|{year or ''}"
 
 
 def films(folder, titles):
-    """{key: (title to search, release date)} for every film a chain's file lists now."""
-    found = {}
+    """{key: (title to search, release date)} for every film a chain's file lists now, and
+    {raw title: key} for every title naming one."""
+    found, named = {}, {}
     for path in sorted(Path(folder).glob("*.sqlite")):
         chain = CHAINS.get(path.stem)
         if chain is None:
@@ -56,10 +59,13 @@ def films(folder, titles):
             cleaned = titles.get(raw)
             title = cleaned["title"] if cleaned else chain.search_title(raw)
             key = film_key(title, cleaned and cleaned.get("year"))
-            if title_key(title) and key not in found:
+            if not title_key(title):
+                continue
+            named[raw] = key
+            if key not in found:
                 year = cleaned and cleaned.get("year")
                 found[key] = (title, f"{year}-01-01" if year else release)
-    return found
+    return found, named
 
 
 def rate(folder, key, overrides=None, today=None, omdb=None, imdb=None):
@@ -73,8 +79,8 @@ def rate(folder, key, overrides=None, today=None, omdb=None, imdb=None):
     if overrides and Path(overrides).exists():
         titles.update(json.loads(Path(overrides).read_text()))
     path = folder / "ratings.json"
-    known = json.loads(path.read_text()) if path.exists() else {}
-    listed = films(folder, titles)
+    known = json.loads(path.read_text()).get("films", {}) if path.exists() else {}
+    listed, named = films(folder, titles)
     omdb = omdb or OMDb(key)
     asked = failed = 0
     for film, (title, release) in sorted(listed.items()):
@@ -113,7 +119,14 @@ def rate(folder, key, overrides=None, today=None, omdb=None, imdb=None):
     for entry in known.values():
         if fresh.get(entry["imdb_id"]) is not None:
             entry["imdb"] = fresh[entry["imdb_id"]]
-    text = json.dumps(known, ensure_ascii=False, indent=1, sort_keys=True)
+    scored = {
+        raw: {field: known[film][field] for field in ("imdb_id", "imdb", "metacritic")}
+        for raw, film in named.items()
+        if known.get(film, {}).get("imdb_id")
+    }
+    text = json.dumps(
+        {"films": known, "titles": scored}, ensure_ascii=False, indent=1, sort_keys=True
+    )
     changed = not path.exists() or path.read_text() != text
     path.write_text(text)
     summary = {

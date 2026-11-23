@@ -30,8 +30,8 @@
   cleaned (`showtimes-ratings`, `ingest/src/showtimes_ingest/ratings.py`, in Publish's titles job):
   one OMDb lookup per clean title and year, kept in `ratings.json` on the data release so OMDb is
   asked only about films it has not seen (the free key allows 1,000 a day); IMDb's own file
-  refreshes the IMDb score each run. The export reads it by the same key as `titleKey`; keep
-  `ratings.title_key` and `titleKey` in step.
+  refreshes the IMDb score each run. Its `titles` section gives each raw title as a chain lists
+  it the scores of its film, and the export reads that, as it reads `titles.json`.
 - The schema lives in `ingest/src/showtimes_ingest/store.py`. The site's tests read it from
   there, so change the schema and `site/src/export.ts` together. `site/src/queries.ts` answers
   every question with a loop over the showings; keep key presses free of anything slower.
