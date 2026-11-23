@@ -1,10 +1,11 @@
 """The ingest, with ODEON as its chain, against a fake ODEON and a temporary
 database. Nothing here reaches ODEON, OMDb or IMDb."""
 
+import json
 import os
 import tempfile
 import unittest
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from pathlib import Path
 from unittest.mock import patch
 
@@ -257,60 +258,80 @@ class DatabaseTests(unittest.TestCase):
             "imdbID": "tt1",
         }
 
-    def test_ratings_run_once_after_each_ingest_preferring_imdbs_own_file(self):
-        with patch.dict(os.environ, {"OMDB_API_KEY": "k"}):
-            self.assertEqual(ratings.check_ratings(odeon, self.path), "waiting")
+    def folder(self):
+        """A data folder holding this ODEON file and a copy of it as another chain's."""
         run.ingest(self.path, TODAY, FakeAPI())
-        with patch.dict(os.environ, {"OMDB_API_KEY": ""}):
-            self.assertEqual(ratings.check_ratings(odeon, self.path), "disabled")
+        folder = Path(self.path).parent / "data"
+        folder.mkdir()
+        (folder / "odeon.sqlite").write_bytes(Path(self.path).read_bytes())
+        (folder / "vue.sqlite").write_bytes(Path(self.path).read_bytes())
+        return folder
+
+    def test_a_film_two_chains_list_is_looked_up_once_and_imdbs_own_file_wins(self):
+        folder = self.folder()
         with (
-            patch.dict(os.environ, {"OMDB_API_KEY": "k"}),
             patch.object(OMDb, "fetch", self.omdb),
             patch.object(IMDbRatings, "ratings_for", return_value={"tt1": 8.4}),
         ):
-            self.assertEqual(ratings.check_ratings(odeon, self.path), "ingested")
-            self.assertEqual(ratings.check_ratings(odeon, self.path), "done")
+            summary, changed = ratings.rate(folder, "k", today=TODAY)
+        self.assertTrue(changed)
+        # Two films, each listed by both chains: two lookups, not four.
+        self.assertEqual((summary["films"], summary["asked"]), (2, 2))
+        saved = json.loads((folder / "ratings.json").read_text())
+        self.assertEqual(saved["films"]["dune|"]["checked"], "2026-11-11")
+        # The export reads each raw title's scores, as it reads titles.json.
         self.assertEqual(
-            self.rows("SELECT * FROM ratings WHERE film_id = 'F1' ORDER BY source"),
-            [("F1", "imdb", 8.4, "tt1"), ("F1", "metacritic", 74.0, None)],
+            saved["titles"]["Dune"], {"imdb_id": "tt1", "imdb": 8.4, "metacritic": 74}
         )
 
-    def test_venue_scoped_copies_share_a_ratings_lookup(self):
-        run.ingest(self.path, TODAY, FakeAPI())
-        with connect(self.path) as db:
-            db.execute("DELETE FROM availability WHERE film_id != 'F1'")
-            db.execute(
-                "INSERT INTO films SELECT 'copy', title, runtime, certificate, release_date, genres, people, distributor, synopsis, trailer_url FROM films WHERE id = 'F1'"
-            )
-            db.execute(
-                "INSERT INTO availability VALUES ('155', 'copy', '[\"NowShowing\"]')"
-            )
+    def test_omdb_is_asked_only_about_films_it_has_not_seen(self):
+        folder = self.folder()
         with (
-            patch.object(
-                OMDb,
-                "lookup",
-                return_value={"imdb_id": "tt1", "imdb": 8.0, "metacritic": 74.0},
-            ) as lookup,
+            patch.object(OMDb, "lookup", return_value=None) as lookup,
             patch.object(IMDbRatings, "ratings_for", return_value={}),
         ):
-            ratings.ingest_ratings(odeon, self.path, key="k")
-        self.assertEqual(lookup.call_count, 1)
-        self.assertEqual(
-            self.rows("SELECT count(*) FROM ratings WHERE film_id IN ('F1', 'copy')"),
-            [(4,)],
+            ratings.rate(folder, "k", today=TODAY)  # not found
+            ratings.rate(folder, "k", today=TODAY + timedelta(days=7))
+            self.assertEqual(lookup.call_count, 2)  # a miss waits four weeks
+            ratings.rate(folder, "k", today=TODAY + timedelta(weeks=5))
+            self.assertEqual(lookup.call_count, 4)
+
+    def test_claudes_clean_title_and_year_are_what_omdb_is_asked(self):
+        folder = self.folder()
+        (folder / "titles.json").write_text(
+            json.dumps({"Dune": {"title": "Dune: Part One", "year": 2021, "tags": []}})
+        )
+        with (
+            patch.object(OMDb, "lookup", return_value=None) as lookup,
+            patch.object(IMDbRatings, "ratings_for", return_value={}),
+        ):
+            ratings.rate(folder, "k", today=TODAY)
+        lookup.assert_any_call("Dune: Part One", "2021-01-01")
+        self.assertIn(
+            "dunepartone|2021",
+            json.loads((folder / "ratings.json").read_text())["films"],
         )
 
-    def test_ratings_ingest_stops_on_a_rejected_key(self):
-        run.ingest(self.path, TODAY, FakeAPI())
+    def test_a_rejected_key_keeps_what_was_found(self):
+        folder = self.folder()
 
         def rejected(self, params):
             self.stopped = "Invalid API key!"
             raise RuntimeError("OMDb: Invalid API key!")
 
-        with patch.object(OMDb, "fetch", rejected):
-            with self.assertLogs("showtimes", "ERROR"), self.assertRaises(RuntimeError):
-                ratings.ingest_ratings(odeon, self.path, key="bad")
-        self.assertEqual(self.rows("SELECT count(*) FROM ratings"), [(0,)])
+        with (
+            patch.object(OMDb, "fetch", rejected),
+            patch.object(IMDbRatings, "ratings_for", return_value={}),
+            self.assertLogs("showtimes", "WARNING"),
+        ):
+            summary, _ = ratings.rate(folder, "bad", today=TODAY)
+        self.assertEqual(
+            (summary["asked"], summary["stopped"]), (0, "Invalid API key!")
+        )
+        self.assertEqual(
+            json.loads((folder / "ratings.json").read_text()),
+            {"films": {}, "titles": {}},
+        )
 
 
 class ChainsTest(unittest.TestCase):

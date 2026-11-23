@@ -1,16 +1,19 @@
 // Writes the listings the site downloads, from each chain's SQLite file:
 //   node scripts/export.ts <folder> <chain>.sqlite...
-//   listings.json.gz  every cinema
-//   london.json.gz    Greater London only, for visitors who tick nothing else
+//   listings-<hash>.json.gz  every cinema
+//   london-<hash>.json.gz    Greater London only, for visitors who tick nothing else
+//   manifest.json            those two names, which the build puts into the page: a page and its
+//                            listings always belong together, however long either is cached
 //   areas.json        which cinemas are Greater London's, built into the page
 //   badge.json        the README's listings badge (src/badge.ts)
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { createHash } from 'node:crypto';
+import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { basename, dirname, join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { gzipSync } from 'node:zlib';
 import { CHAINS } from '../src/chains/index.ts';
 import { listingsBadge } from '../src/badge.ts';
-import { exportListings, type Source } from '../src/export.ts';
+import { exportListings, type Ratings, type Source } from '../src/export.ts';
 import type { Titles } from '../src/titles.ts';
 
 const [to, ...files] = process.argv.slice(2);
@@ -31,13 +34,22 @@ const titles: Titles = {
   ...JSON.parse(readFileSync(new URL('../src/titles.overrides.json', import.meta.url), 'utf8')),
 };
 console.log(existsSync(cleaned) ? `Cleaning titles with ${cleaned}` : `No ${cleaned}: titles stay as the chains wrote them`);
+// Each film's scores, looked up once across every chain (ingest/src/showtimes_ingest/ratings.py).
+const rated = join(dirname(files[0]), 'ratings.json');
+const ratings: Ratings = existsSync(rated) ? JSON.parse(readFileSync(rated, 'utf8')) : {};
 mkdirSync(to, { recursive: true });
-const all = exportListings(sources, undefined, titles);
+const all = exportListings(sources, undefined, titles, ratings);
 const london = all.cinemas.filter((cinema) => cinema.town === 'Greater London').map((cinema) => cinema.id);
-for (const [name, data] of [['listings', all], ['london', exportListings(sources, new Set(london), titles)]] as const) {
-  writeFileSync(`${to}/${name}.json.gz`, gzipSync(JSON.stringify(data)));
-  console.log(`Wrote ${data.rows.length} showings to ${to}/${name}.json.gz`);
+// Earlier exports' documents go, so that only these are published.
+for (const old of readdirSync(to).filter((file) => /^(listings|london)(-[0-9a-f]+)?\.json\.gz$/.test(file))) rmSync(`${to}/${old}`);
+const manifest: Record<string, string> = {};
+for (const [name, data] of [['listings', all], ['london', exportListings(sources, new Set(london), titles, ratings)]] as const) {
+  const bytes = gzipSync(JSON.stringify(data));
+  manifest[name] = `${name}-${createHash('sha256').update(bytes).digest('hex').slice(0, 10)}.json.gz`;
+  writeFileSync(`${to}/${manifest[name]}`, bytes);
+  console.log(`Wrote ${data.rows.length} showings to ${to}/${manifest[name]}`);
 }
+writeFileSync(`${to}/manifest.json`, JSON.stringify(manifest));
 writeFileSync(`${to}/areas.json`, JSON.stringify({ 'Greater London': london }));
 // Chains whose latest run failed: the site still shows their earlier listings.
 const failing = new Set(sources.filter(({ chain, sqlite }) =>

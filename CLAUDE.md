@@ -6,7 +6,11 @@
   no UI framework) is a static page that holds the listings in memory. Its build
   (`npm run listings`) exports every chain's file into JSON documents (every cinema, and Greater
   London alone, which is loaded while only its cinemas are ticked) plus `areas.json`, built into
-  the page; the browser runs no SQL and no WebAssembly.
+  the page; the browser runs no SQL and no WebAssembly. The documents' names carry a hash of their
+  contents (`listings-<hash>.json.gz`, listed in `data/manifest.json` and built into the page as
+  `__DATA__`), so a page always fetches the listings it was built with, whatever Pages' 10-minute
+  cache holds. When the full document passes about 8 MB compressed (4.6 MB on 2026-11-23), split
+  it by region as `london` is split.
 - Each chain is two adapters. `ingest/src/showtimes_ingest/chains/<chain>/` fetches it (the
   interface is in `chains/__init__.py`); `site/src/chains/<chain>.ts` reads its stored record
   into the shared vocabulary at export (`Chain` in `chains/chain.ts`): cinema names and towns, tag
@@ -26,6 +30,12 @@
   Claude decided. Deleting an entry from `titles.json` makes Claude decide it again. It signs in
   through Workload Identity Federation from the Publish job's GitHub OIDC token (no API key; the
   rule, organization, service account and workspace IDs are in `deploy.yml`).
+- IMDb and Metacritic scores are looked up once per film across every chain, after the titles are
+  cleaned (`showtimes-ratings`, `ingest/src/showtimes_ingest/ratings.py`, in Publish's titles job):
+  one OMDb lookup per clean title and year, kept in `ratings.json` on the data release so OMDb is
+  asked only about films it has not seen (the free key allows 1,000 a day); IMDb's own file
+  refreshes the IMDb score each run. Its `titles` section gives each raw title as a chain lists
+  it the scores of its film, and the export reads that, as it reads `titles.json`.
 - The schema lives in `ingest/src/showtimes_ingest/store.py`. The site's tests read it from
   there, so change the schema and `site/src/export.ts` together. `site/src/queries.ts` answers
   every question with a loop over the showings; keep key presses free of anything slower.
@@ -64,7 +74,12 @@
   Picturehouse and Curzon refuse cloud addresses and are reached through the owner's home exit
   node, and Cineworld and Curzon are read with curl-impersonate, which presents Chrome's TLS
   fingerprint. The other rules still hold: never pass a challenge or CAPTCHA, and one ingest a week.
-- There is no server and no secret in the site. The site is one finder (`site/src/main.ts`):
+- There is no server and no secret in the site. The site is one finder (`site/src/main.ts` wires
+  its modules: `state.ts` what is held, read live elsewhere and replaced only through its setters;
+  `finder.ts` the columns, showtimes and details; `drawer.ts` the settings; `cmdline.ts` the
+  command line, ex commands and `:help`; `keys.ts` normal mode; `history.ts` the address, undo and
+  redo; `columns.ts` the kinds of column; `dom.ts` and `format.ts` helpers. The modules import
+  each other in a cycle, so their top-level code uses only other modules' function declarations):
   columns of choices, then the showtimes, then the details. Every page the site once had is a
   column a visitor can add (`FACETS` in `queries.ts`; `q.find` counts each column with the
   others' choices applied). What is shown at all is in the query string
@@ -75,7 +90,7 @@
   least needed first. Nothing is stored in the browser. The default view is Cinema then
   Film, over every cinema. On a phone one column shows at a time.
 - The keys are vim's and nothing else: normal mode, ex commands (`:set`, `:sort`, `:vs`, `:q`,
-  `:filter`) and `/` `?` searches on the command line. `NORMAL`, `EX` and `DRAWER` in `main.ts`
+  `:filter`) and `/` `?` searches on the command line. `NORMAL`, `EX` and `DRAWER` in `cmdline.ts`
   are the `:help` list; keep it in step with the keys. The settings drawer is a buffer too.
 - This repository is public. Never commit credentials; the tailnet auth key and the OMDb key are
   GitHub Actions secrets.

@@ -5,7 +5,7 @@ import argparse
 import json
 import sys
 
-from showtimes_ingest import ratings, refresh
+from showtimes_ingest import refresh
 from showtimes_ingest.chains import CHAINS
 from showtimes_ingest.log import log, log_to_stdout
 
@@ -15,10 +15,9 @@ def main(argv=None):
     parser.add_argument("chain", choices=sorted(CHAINS), help="the cinema chain")
     parser.add_argument(
         "command",
-        choices=["check", "run", "due", "ratings", "status"],
+        choices=["check", "run", "due", "status"],
         help="check: ingest if the chain's latest listings are not stored. run: ingest now."
-        " due: exit 0 if a check would contact the chain, 3 if not."
-        " ratings: rate the films once after each ingest.",
+        " due: exit 0 if a check would contact the chain, 3 if not.",
     )
     args = parser.parse_args(argv)
     chain = CHAINS[args.chain]
@@ -28,8 +27,6 @@ def main(argv=None):
             print(json.dumps(chain.ingest()))
         elif args.command == "check":
             print(json.dumps({"result": chain.check()}))
-        elif args.command == "ratings":
-            print(json.dumps({"result": ratings.check_ratings(chain)}))
         elif args.command == "status":
             print(json.dumps(refresh.status(None, chain.NAME)))
         else:

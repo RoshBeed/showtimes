@@ -2,10 +2,10 @@
 # The published listings: a SQLite file for each cinema chain, <chain>.sqlite.gz,
 # assets of this repository's `data` release. The Ingest workflow uploads them;
 # site builds download them.
-#   listings.sh download [chain] fetch every file, or just the named provider;
-#                               every file includes titles.json, Claude's clean titles
+#   listings.sh download [chain] fetch every file, or just the named provider; every file
+#                               includes titles.json (Claude's clean titles) and ratings.json
 #   listings.sh upload <chain>  publish data/<chain>.sqlite
-#   listings.sh upload-titles   publish data/titles.json
+#   listings.sh upload-json <name>  publish data/<name>.json (titles, ratings)
 # Needs gh, signed in (or GH_TOKEN), and to run inside the repository.
 set -euo pipefail
 cd "$(dirname "$0")/.."
@@ -16,9 +16,13 @@ download)
   files=$(gh release view data --json assets --jq '.assets[].name | select(endswith(".sqlite.gz"))' 2>/dev/null || true)
   if [ -n "${2:-}" ]; then
     files=$(printf '%s\n' "$files" | awk -v wanted="$2.sqlite.gz" '$0 == wanted')
-  elif gh release view data --json assets --jq '.assets[].name' 2>/dev/null | grep -qx titles.json; then
-    gh release download data --pattern titles.json --dir data --clobber
-    echo "Fetched data/titles.json."
+  else
+    for name in titles.json ratings.json; do
+      if gh release view data --json assets --jq '.assets[].name' 2>/dev/null | grep -qx "$name"; then
+        gh release download data --pattern "$name" --dir data --clobber
+        echo "Fetched data/$name."
+      fi
+    done
   fi
   if [ -z "$files" ]; then
     echo "No listings are published yet."
@@ -42,12 +46,13 @@ upload)
   rm "$file.gz"
   echo "Published $file."
   ;;
-upload-titles)
-  gh release upload data data/titles.json --clobber
-  echo "Published data/titles.json."
+upload-json)
+  name=${2:?usage: $0 upload-json <name>}
+  gh release upload data "data/$name.json" --clobber
+  echo "Published data/$name.json."
   ;;
 *)
-  echo "usage: $0 download [chain] | upload <chain> | upload-titles" >&2
+  echo "usage: $0 download [chain] | upload <chain> | upload-json <name>" >&2
   exit 2
   ;;
 esac

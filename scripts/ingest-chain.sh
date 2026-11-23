@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
-# One provider's ingest: check whether it is due, ingest, and rate the films. Says
+# One provider's ingest: check whether it is due, then ingest. Says
 # changed=true or changed=false (to GITHUB_OUTPUT in a workflow); Publish puts a changed
 # file on the data release. With VIA set (scripts/via-tailnet.sh), the fetch alone goes through
 # it, and only when the chain is due.
 #   [VIA=…] ingest-chain.sh <chain> check|run
 # Needs: data/<chain>.sqlite downloaded first (scripts/listings.sh download),
-# and the ingest Docker image; OMDB_API_KEY for ratings is optional.
+# and the ingest Docker image. Films are rated after every chain, in Publish (ratings.py).
 set -euo pipefail
 cd "$(dirname "$0")/.."
 chain=${1:?usage: $0 <chain> check|run}
@@ -24,9 +24,6 @@ if [ "$command" = run ] || [ "$due" = 0 ]; then
 elif [ "$due" != 3 ]; then
   status=$due
 fi
-# Ratings are optional (OMDb's free key allows 1,000 lookups a day): a failure is a warning,
-# recorded in the file, never the chain's failure. The next run fills in what is missing.
-bash scripts/ingest.sh "$chain" ratings || echo "::warning::$chain: ratings not updated (see the log)"
 if [ -n "${GITHUB_STEP_SUMMARY:-}" ]; then
   {
     printf '### %s ingestion\n\n```json\n' "$chain"

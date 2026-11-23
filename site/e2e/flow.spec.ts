@@ -333,11 +333,11 @@ test('London only, at the top of the settings, is ?cinemas=london and loads only
   await page.goto('about:blank'); // a fresh visit, as from the bookmark
   fetched.length = 0;
   await visit(page, bookmark);
-  expect(fetched).toEqual(['london.json.gz']);
+  expect(fetched).toEqual([expect.stringMatching(/^london(-[0-9a-f]+)?\.json\.gz$/)]);
   await ex(page, 'set nolondon');
   await expect(page).not.toHaveURL(/cinemas=/);
   await expect(choices(page, 'Cinema')).toHaveText([/^All/, /^Aberdeen/, /^Holloway/, /^West End/]);
-  expect(fetched).toEqual(['london.json.gz', 'listings.json.gz']); // every cinema, fetched once needed
+  expect(fetched).toEqual([expect.stringMatching(/^london/), expect.stringMatching(/^listings(-[0-9a-f]+)?\.json\.gz$/)]); // every cinema, fetched once needed
   await page.locator('footer .open-panel').click();
   await expect(london).not.toBeChecked();
   await expect(page.locator('footer .open-panel')).toHaveText('Settings');
