@@ -11,7 +11,7 @@ import { openPanel } from './drawer';
 import { clock, day, fullDate } from './format';
 import { note, noteNow, startHistory } from './history';
 import * as q from './queries';
-import { address, app, db, hidden, narrow, page, scope, setDb, setDrawn, setPage, setView, ticks, toggle, view } from './state';
+import { address, app, cursors, db, hidden, narrow, page, scope, setDb, setDrawn, setPage, setView, ticks, toggle, view } from './state';
 import { formats } from './tags';
 import { about } from './version';
 
@@ -71,6 +71,8 @@ export function render() {
   if (!db) return; // still downloading; load() draws the page when it arrives
   learnCinemas();
   setView(readView(location.hash));
+  // A column whose marks are gone (undone, or the column closed) chooses as it moves again.
+  for (const facet of [...cursors.keys()]) if (!view.columns.includes(facet) || !picked(view, facet).length) cursors.delete(facet);
   view.focus = Math.min(view.focus, lastColumn());
   startHistory(); // where undo stops
   const columns = view.columns;
@@ -111,6 +113,13 @@ export function render() {
     h('div', { class: 'column showtimes' }, bar('Showtimes', ...finding(results), total), shows),
     detail,
   ];
+  // Clicking a column's heading or its empty space goes to it and shows its choices, changing nothing.
+  panes.slice(0, results + 1).forEach((pane, index) => pane.addEventListener('click', (event) => {
+    if ((event.target as Element).closest('li, button, input')) return;
+    view.focus = index;
+    mark();
+    pane.querySelector('.selected, .cursor')?.scrollIntoView({ block: 'nearest' });
+  }));
   panes[results].addEventListener('scroll', () => {
     const column = panes[results];
     if (state.rows.length < state.total && column.scrollTop + column.clientHeight > column.scrollHeight - 600) { state.more += 1; draw(); }
@@ -179,16 +188,20 @@ export function render() {
             // Shift: every line from the last one clicked to this one. Ctrl or Cmd: this one added or taken away.
             const from = anchors.get(facet);
             const lines = all.slice(1) as string[];
+            cursors.set(facet, all.indexOf(value)); // lines are marked: j and k now move without choosing
             if (event.shiftKey) {
               const [a, b] = [lines.indexOf(from ?? value), lines.indexOf(value)].map((at) => (at < 0 ? lines.indexOf(value) : at));
               chooseMany(facet, lines.slice(Math.min(a, b), Math.max(a, b) + 1));
             } else {
               anchors.set(facet, value);
-              chooseMany(facet, chosen.includes(value) ? chosen.filter((each) => each !== value) : [...chosen, value]);
+              const next = chosen.includes(value) ? chosen.filter((each) => each !== value) : [...chosen, value];
+              if (!next.length) cursors.delete(facet);
+              chooseMany(facet, next);
             }
             return;
           }
           if (value !== undefined) anchors.set(facet, value);
+          cursors.delete(facet); // a plain click chooses one line, as moving does again
           choose(facet, value);
           if (narrow.matches) { view.focus = index + 1; mark(); } // on a phone any choice, All too, moves on
         };
@@ -273,6 +286,13 @@ export function render() {
     panes.forEach((pane, index) => pane.classList.toggle('focused', index === view.focus));
     shows.querySelector('.selected')?.classList.remove('selected');
     shows.querySelectorAll('li.show')[view.row]?.classList.add('selected');
+    // Where lines are marked, the line in hand is outlined: the cursor j and k move.
+    columns.forEach((facet, index) => {
+      lists[index].querySelector('.cursor')?.classList.remove('cursor');
+      const at = cursors.get(facet);
+      if (at !== undefined) lists[index].querySelectorAll('li:not(.heads):not(.note)')[at]?.classList.add('cursor');
+    });
+    lists[view.focus]?.querySelector('.cursor')?.scrollIntoView({ block: 'nearest' });
     for (const pane of panes) pane.querySelector('.selected')?.scrollIntoView({ block: 'nearest' });
     steps.replaceChildren(...[...columns, 'showtimes', 'details'].map((name, index) => {
       const facet = columns[index];

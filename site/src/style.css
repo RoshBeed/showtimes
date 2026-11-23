@@ -34,6 +34,8 @@ footer kbd { color: var(--accent); font: inherit; }
 footer .name a { color: var(--text); font-weight: 600; text-decoration: none; }
 footer .open-panel { border: 0; padding: 0; margin: 0 1.5ch 0 0; background: none; font: inherit; line-height: inherit; color: var(--accent); cursor: pointer; }
 footer .open-panel:hover { text-decoration: underline; }
+/* Where lines are marked, the line in hand: the cursor that j and k move. */
+.facet li.cursor { outline: 1px dashed var(--accent); outline-offset: -1px; }
 /* Only a phone shows this row: the steps, then the settings. */
 .topbar { display: none; }
 .about a { color: inherit; }

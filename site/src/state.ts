@@ -58,3 +58,7 @@ export function setPage(next: typeof page) { page = next; }
 /** The address last drawn; a change from elsewhere (going back, an edited address) draws again. */
 export let drawn = '';
 export function setDrawn(hash: string) { drawn = hash; }
+/** Columns where lines are marked (Space, V, Shift- or Ctrl-click), and the line in hand in each.
+ *  There j and k move this cursor and leave the marks as they are, as in ranger or lf; elsewhere
+ *  moving through a column chooses the line moved to. */
+export const cursors = new Map<q.Facet, number>();

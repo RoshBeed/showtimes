@@ -94,6 +94,36 @@ test('several choices in a column: Shift-click a range, Ctrl-click one more or l
   await expect(page).not.toHaveURL(/film=[^&]+&film=/);
 });
 
+test('Space marks lines apart, as in ranger or lf: j and k then move without choosing, and a heading goes back to a column', async ({ page }) => {
+  await visit(page, '/#cols=cinema,film');
+  const cinemas = choices(page, 'Cinema');
+  const selected = cinemas.locator('xpath=self::*[contains(@class, "selected")]');
+  await page.keyboard.press('j'); // Aberdeen, chosen as moving chooses
+  await page.keyboard.press(' '); // marked; the cursor moves down to Holloway
+  await page.keyboard.press('j'); // the cursor to West End; nothing else chosen
+  await expect(selected).toHaveText([/^Aberdeen/]);
+  await expect(cinemas.filter({ hasText: 'West End' })).toHaveClass(/cursor/);
+  await page.keyboard.press(' '); // West End marked too: two lines apart
+  await expect(selected).toHaveText([/^Aberdeen/, /^West End/]);
+  await expect(page).toHaveURL(/cinema=odeon-001&cinema=odeon-155/);
+  await page.keyboard.press('k');
+  await page.keyboard.press('k');
+  await expect(selected).toHaveCount(2); // moving keeps the marks
+  // To the films, then back to the cinemas by clicking the column's heading: nothing changes.
+  await page.keyboard.press('l');
+  await expect(column(page, 'Film')).toHaveClass(/focused/);
+  await column(page, 'Cinema').locator('.bar h2').click();
+  await expect(column(page, 'Cinema')).toHaveClass(/focused/);
+  await expect(selected).toHaveText([/^Aberdeen/, /^West End/]);
+  // Space on All clears the marks, and moving chooses again.
+  await page.keyboard.press('g');
+  await page.keyboard.press('g');
+  await page.keyboard.press(' ');
+  await expect(selected).toHaveText([/^All/]);
+  await page.keyboard.press('j');
+  await expect(selected).toHaveText([/^Aberdeen/]);
+});
+
 test('there is no header: the footer names the site and opens the settings, on one line', async ({ page }) => {
   await visit(page, '/');
   await expect(page.locator('header')).toHaveCount(0);
