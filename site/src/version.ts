@@ -1,3 +1,4 @@
+import { h } from './dom';
 // Which build of the site this is: the commit it was built from, set at build time in
 // vite.config.ts, so a visitor (or the owner) can tell which version is running.
 declare const __VERSION__: { sha: string; branch: string; built: string } | undefined;
@@ -14,3 +15,10 @@ export function versionLabel(version = VERSION): string {
 
 /** Where the version's commit is on GitHub, or the repository when the commit is not known. */
 export const versionHref = (version = VERSION): string => (version.sha ? `${REPO}/commit/${version.sha}` : REPO);
+
+/** Which version of the site this is, linked to its commit, and the repository on GitHub. */
+export function about(): HTMLElement {
+  return h('span', { class: 'about' },
+    h('a', { class: 'version', href: versionHref(), title: VERSION.built ? `built ${VERSION.built}` : '' }, `version ${versionLabel()}`),
+    ' · ', h('a', { class: 'github', href: REPO }, 'GitHub'));
+}
