@@ -84,7 +84,9 @@
   column a visitor can add (`FACETS` in `queries.ts`; `q.find` counts each column with the
   others' choices applied). What is shown at all is in the query string
   (`?cinemas=london&hidden=…&show=events`; Greater London ticked whole is written `london`),
-  and the view in the hash (`#cols=day,film,screen&film=…&order=film:rating&col=2&row=5`),
+  and the view in the hash (`#cols=day,film,screen&film=…&film=…&order=film:rating&col=2&row=5`;
+  a column with several choices repeats its name, and a showing matches any of them: Shift-click
+  a range, Ctrl/Cmd-click one more, or `V` visual line mode),
   so a bookmark is a saved view; the default view has no hash at all. `fields=` picks what each
   showtime row shows (`FIELDS` in `choices.ts`), and rows too wide for their column leave out the
   least needed first. Nothing is stored in the browser. The default view is Cinema then

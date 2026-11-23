@@ -61,6 +61,39 @@ test('keys choose in each column, each counts what the others leave, and the add
   await expect(page).toHaveURL(/\/$/);
 });
 
+test('several choices in a column: Shift-click a range, Ctrl-click one more or less, and V in visual line mode', async ({ page }) => {
+  await visit(page, '/#cols=cinema,film');
+  const cinemas = choices(page, 'Cinema');
+  const showings = async (name: string) => Number((await cinemas.filter({ hasText: name }).locator('.count').textContent())!.replace(/,/g, ''));
+  const [aberdeen, holloway] = [await showings('Aberdeen'), await showings('Holloway')];
+  await cinemas.filter({ hasText: 'Aberdeen' }).click();
+  await cinemas.filter({ hasText: 'Holloway' }).click({ modifiers: ['Shift'] }); // the range: Aberdeen and Holloway
+  await expect(total(page)).toHaveText(String(aberdeen + holloway));
+  await expect(cinemas.locator('xpath=self::*[contains(@class, "selected")]')).toHaveCount(2);
+  await expect(page).toHaveURL(/cinema=odeon-001&cinema=odeon-090/);
+  await cinemas.filter({ hasText: 'Aberdeen' }).click({ modifiers: ['ControlOrMeta'] }); // one taken away
+  await expect(total(page)).toHaveText(String(holloway));
+  await expect(page).not.toHaveURL(/odeon-001/);
+  await cinemas.first().click(); // All
+  await expect(total(page)).toHaveText('254');
+  // V on All in the Film column, then j j: both films; Esc keeps them, and so does a reload.
+  await page.keyboard.press('l');
+  await page.keyboard.press('V');
+  await page.keyboard.press('j');
+  await page.keyboard.press('j');
+  await expect(page.locator('.cmdline .message')).toHaveText('-- VISUAL LINE --');
+  await page.keyboard.press('Escape');
+  await expect(page.locator('.cmdline .message')).toHaveText('');
+  await expect(page).toHaveURL(/film=[^&]+&film=[^&]+/);
+  await expect(choices(page, 'Film').locator('xpath=self::*[contains(@class, "selected")]')).toHaveCount(2);
+  await expect(total(page)).toHaveText('254'); // every film, as with All
+  await page.reload();
+  await expect(choices(page, 'Film').locator('xpath=self::*[contains(@class, "selected")]')).toHaveCount(2);
+  // j after the selection ends goes back to one film, as a single choice.
+  await page.keyboard.press('j');
+  await expect(page).not.toHaveURL(/film=[^&]+&film=/);
+});
+
 test('there is no header: the footer names the site and opens the settings, on one line', async ({ page }) => {
   await visit(page, '/');
   await expect(page.locator('header')).toHaveCount(0);

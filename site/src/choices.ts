@@ -76,7 +76,11 @@ export function readView(hash: string): View {
   const known = (name: string): name is Facet => (FACETS as readonly string[]).includes(name);
   const columns = params.has('cols') ? [...new Set(params.get('cols')!.split(',').filter(known))] : [...DEFAULT_COLUMNS];
   const picks: Picks = {};
-  for (const column of columns) if (params.get(column)) picks[column] = params.get(column)!;
+  // A column with several choices repeats its name: film=a&film=b.
+  for (const column of columns) {
+    const values = [...new Set(params.getAll(column).filter(Boolean))];
+    if (values.length) picks[column] = values;
+  }
   const orders: View['orders'] = {};
   for (const entry of (params.get('order') ?? '').split(',')) {
     const [column, order] = entry.split(':');
@@ -104,7 +108,7 @@ export function readView(hash: string): View {
 export function writeView(view: View): string {
   const parts = [
     view.columns.join(',') === DEFAULT_COLUMNS.join(',') ? '' : `cols=${view.columns.join(',')}`,
-    ...view.columns.map((column) => (view.picks[column] ? `${column}=${encodeURIComponent(view.picks[column]!)}` : '')),
+    ...view.columns.flatMap((column) => (view.picks[column] ?? []).map((value) => `${column}=${encodeURIComponent(value)}`)),
     Object.keys(view.orders).length ? `order=${Object.entries(view.orders).map(([column, order]) => `${column}:${order}`).join(',')}` : '',
     view.fields.join(',') === DEFAULT_FIELDS.join(',') ? '' : `fields=${view.fields.join(',')}`,
     view.sort === 'date' ? '' : `sort=${view.sort}`,
@@ -114,4 +118,15 @@ export function writeView(view: View): string {
     view.row ? `row=${view.row + 1}` : '',
   ].filter(Boolean);
   return parts.length ? '#' + parts.join('&') : '';
+}
+
+/** What is chosen in a column: nothing (All), one value or several. */
+export const picked = (view: View, facet: Facet): string[] => view.picks[facet] ?? [];
+/** The one value chosen in a column, when exactly one is. */
+export const onlyPick = (view: View, facet: Facet): string | undefined => (view.picks[facet]?.length === 1 ? view.picks[facet]![0] : undefined);
+/** Choose these values in a column; none is All. */
+export function pick(view: View, facet: Facet, values: string[]) {
+  const unique = [...new Set(values)];
+  if (unique.length) view.picks[facet] = unique;
+  else delete view.picks[facet];
 }
