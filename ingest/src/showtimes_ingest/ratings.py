@@ -1,98 +1,147 @@
-"""IMDb and Metacritic scores for the films in a chain's file, once after each
-of its ingests. The same for every chain: OMDb finds the film, IMDb's own
-ratings file gives the fresher score."""
+"""IMDb and Metacritic scores, looked up once per film across every chain.
 
+Publish runs this after Claude has cleaned the titles: each film is known by its clean
+title and the year the title gives, so a film shown by five chains, or listed once per
+format, is looked up once. OMDb identifies it (and gives its Metacritic score); IMDb's own
+ratings file, read again at each run, gives the fresher IMDb score. What OMDb said is kept
+in <folder>/ratings.json on the data release, so OMDb is asked only about films it has not
+seen (and again about a film it did not find, after four weeks). The export reads it.
+
+    showtimes-ratings <folder> [overrides.json]
+"""
+
+import json
 import os
+import sqlite3
+import sys
 import tempfile
+import unicodedata
+from contextlib import closing
+from datetime import date, timedelta
 from pathlib import Path
 
+from showtimes_ingest.chains import CHAINS
 from showtimes_ingest.log import log
-from showtimes_ingest.scores import IMDbRatings, OMDb
-from showtimes_ingest.store import (
-    MAX_FAILURES,
-    connect,
-    failures_since,
-    finish_run,
-    last_success,
-    start_run,
-)
+from showtimes_ingest.scores import IMDbRatings, OMDb, search_title
+
+RETRY_MISSING = timedelta(weeks=4)
 
 
-def ingest_ratings(chain, path=None, key=None):
-    """IMDb and Metacritic scores for the films a chain lists."""
-    key = key or os.environ.get("OMDB_API_KEY", "").strip()
-    if not key:
-        raise RuntimeError("Set OMDB_API_KEY for the ratings ingest")
-    run_id = start_run(path, "ratings")
-    omdb = OMDb(key)
-    try:
-        with connect(path) as db:
-            films = db.execute(
-                "SELECT id, title, release_date FROM films"
+def title_key(title):
+    """As site/src/titles.ts's titleKey: case, accents, punctuation and spacing set aside."""
+    text = unicodedata.normalize("NFD", title.lower())
+    return "".join(
+        c for c in text if c.isalnum() and not unicodedata.category(c).startswith("M")
+    )
+
+
+def film_key(title, year):
+    """How the export finds a film's scores: its clean title, and the year the title gives."""
+    return f"{title_key(title)}|{year or ''}"
+
+
+def films(folder, titles):
+    """{key: (title to search, release date)} for every film a chain's file lists now."""
+    found = {}
+    for path in sorted(Path(folder).glob("*.sqlite")):
+        chain = CHAINS.get(path.stem)
+        if chain is None:
+            continue
+        with closing(sqlite3.connect(f"file:{path}?mode=ro", uri=True)) as db:
+            rows = db.execute(
+                "SELECT title, release_date FROM films"
                 " WHERE id IN (SELECT film_id FROM availability)"
             ).fetchall()
-        found, failed, looked_up = {}, 0, {}
-        for film_id, title, release in films:
-            title = chain.search_title(title)
-            # Venue-scoped programme IDs can describe the same film dozens of
-            # times. OMDb uses title/year; spend its quota once for that query.
-            lookup_key = (title.casefold(), release[:4] if release else None)
-            if lookup_key not in looked_up:
-                try:
-                    looked_up[lookup_key] = omdb.lookup(title, release)
-                except RuntimeError:
-                    if omdb.stopped:  # bad key or quota: every further film fails
-                        raise
-                    failed += 1
-                    looked_up[lookup_key] = None
-            scores = looked_up[lookup_key]
-            if scores:
-                found[film_id] = scores
-        # IMDb's own file is fresher than OMDb's copy of the IMDb score.
-        with tempfile.TemporaryDirectory() as directory:
-            imdb = IMDbRatings(Path(directory) / "imdb-ratings.tsv.gz").ratings_for(
-                {scores["imdb_id"] for scores in found.values()}
-            )
-        rows = []
-        for film_id, scores in found.items():
-            score = imdb.get(scores["imdb_id"]) or scores["imdb"]
-            rows.append((film_id, "imdb", score, scores["imdb_id"]))
-            rows.append((film_id, "metacritic", scores["metacritic"], None))
-        with connect(path) as db:
-            db.executemany(
-                "INSERT INTO ratings VALUES (?, ?, ?, ?)"
-                " ON CONFLICT (film_id, source) DO UPDATE"
-                " SET score = excluded.score, external_id = excluded.external_id",
-                rows,
-            )
-    except Exception as error:
-        finish_run(path, run_id, "failed", omdb.requests, str(error)[:500])
-        log.error("ratings ingest %d failed: %s", run_id, error)
-        raise
-    finish_run(path, run_id, "ok", omdb.requests)
-    summary = {
-        "run": run_id,
-        "requests": omdb.requests,
-        "films": len(films),
-        "rated": len(found),
-        "lookups_failed": failed,
+        for raw, release in rows:
+            cleaned = titles.get(raw)
+            title = cleaned["title"] if cleaned else chain.search_title(raw)
+            key = film_key(title, cleaned and cleaned.get("year"))
+            if title_key(title) and key not in found:
+                year = cleaned and cleaned.get("year")
+                found[key] = (title, f"{year}-01-01" if year else release)
+    return found
+
+
+def rate(folder, key, overrides=None, today=None, omdb=None, imdb=None):
+    """Updates <folder>/ratings.json; returns a summary."""
+    folder, today = Path(folder), today or date.today()
+    titles = (
+        json.loads((folder / "titles.json").read_text())
+        if (folder / "titles.json").exists()
+        else {}
+    )
+    if overrides and Path(overrides).exists():
+        titles.update(json.loads(Path(overrides).read_text()))
+    path = folder / "ratings.json"
+    known = json.loads(path.read_text()) if path.exists() else {}
+    listed = films(folder, titles)
+    omdb = omdb or OMDb(key)
+    asked = failed = 0
+    for film, (title, release) in sorted(listed.items()):
+        entry = known.get(film)
+        if entry and (
+            entry["imdb_id"]
+            or today - date.fromisoformat(entry["checked"]) < RETRY_MISSING
+        ):
+            continue
+        try:
+            scores = omdb.lookup(search_title(title), release)
+        except RuntimeError as error:
+            if omdb.stopped:  # a bad key or the day's quota: keep what was found
+                log.warning("OMDb stopped after %d lookups: %s", asked, error)
+                break
+            failed += 1
+            continue
+        asked += 1
+        known[film] = {
+            "title": title,
+            "imdb_id": scores and scores["imdb_id"],
+            "imdb": scores and scores["imdb"],
+            "metacritic": scores and scores["metacritic"],
+            "checked": today.isoformat(),
+        }
+    # IMDb's own file is fresher than OMDb's copy of the IMDb score.
+    ids = {
+        known[film]["imdb_id"]
+        for film in listed
+        if film in known and known[film]["imdb_id"]
     }
-    log.info("ratings ingest %d finished: %s", run_id, summary)
-    return summary
+    with tempfile.TemporaryDirectory() as directory:
+        fresh = (
+            imdb or IMDbRatings(Path(directory) / "imdb-ratings.tsv.gz")
+        ).ratings_for(ids)
+    for entry in known.values():
+        if fresh.get(entry["imdb_id"]) is not None:
+            entry["imdb"] = fresh[entry["imdb_id"]]
+    text = json.dumps(known, ensure_ascii=False, indent=1, sort_keys=True)
+    changed = not path.exists() or path.read_text() != text
+    path.write_text(text)
+    summary = {
+        "films": len(listed),
+        "asked": asked,
+        "failed": failed,
+        "rated": sum(1 for film in listed if known.get(film, {}).get("imdb_id")),
+        "stopped": omdb.stopped or None,
+    }
+    log.info("ratings: %s", summary)
+    return summary, changed
 
 
-def check_ratings(chain, path=None):
-    """Rate the films once after each of the chain's ingests."""
-    if not os.environ.get("OMDB_API_KEY", "").strip():
-        return "disabled"  # ratings are optional; listings work without them
-    listings = last_success(path, chain.NAME)
-    if not listings:
-        return "waiting"
-    rated = last_success(path, "ratings")
-    if rated and rated >= listings:
-        return "done"
-    if failures_since(path, "ratings", listings) >= MAX_FAILURES:
-        log.warning("ratings paused after %d failures; run it manually", MAX_FAILURES)
-        return "paused"
-    ingest_ratings(chain, path)
-    return "ingested"
+def main(argv=None):
+    args = sys.argv[1:] if argv is None else argv
+    if not args:
+        print(__doc__.strip().splitlines()[-1].strip(), file=sys.stderr)
+        return 2
+    key = os.environ.get("OMDB_API_KEY", "").strip()
+    if not key:
+        print("No OMDB_API_KEY: ratings stay as they are.")
+        print("changed=false")
+        return 0
+    summary, changed = rate(args[0], key, args[1] if len(args) > 1 else None)
+    print(json.dumps(summary))
+    print(f"changed={'true' if changed else 'false'}")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
