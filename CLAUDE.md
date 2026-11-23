@@ -74,7 +74,12 @@
   Picturehouse and Curzon refuse cloud addresses and are reached through the owner's home exit
   node, and Cineworld and Curzon are read with curl-impersonate, which presents Chrome's TLS
   fingerprint. The other rules still hold: never pass a challenge or CAPTCHA, and one ingest a week.
-- There is no server and no secret in the site. The site is one finder (`site/src/main.ts`):
+- There is no server and no secret in the site. The site is one finder (`site/src/main.ts` wires
+  its modules: `state.ts` what is held, read live elsewhere and replaced only through its setters;
+  `finder.ts` the columns, showtimes and details; `drawer.ts` the settings; `cmdline.ts` the
+  command line, ex commands and `:help`; `keys.ts` normal mode; `history.ts` the address, undo and
+  redo; `columns.ts` the kinds of column; `dom.ts` and `format.ts` helpers. The modules import
+  each other in a cycle, so their top-level code uses only other modules' function declarations):
   columns of choices, then the showtimes, then the details. Every page the site once had is a
   column a visitor can add (`FACETS` in `queries.ts`; `q.find` counts each column with the
   others' choices applied). What is shown at all is in the query string
@@ -85,7 +90,7 @@
   least needed first. Nothing is stored in the browser. The default view is Cinema then
   Film, over every cinema. On a phone one column shows at a time.
 - The keys are vim's and nothing else: normal mode, ex commands (`:set`, `:sort`, `:vs`, `:q`,
-  `:filter`) and `/` `?` searches on the command line. `NORMAL`, `EX` and `DRAWER` in `main.ts`
+  `:filter`) and `/` `?` searches on the command line. `NORMAL`, `EX` and `DRAWER` in `cmdline.ts`
   are the `:help` list; keep it in step with the keys. The settings drawer is a buffer too.
 - This repository is public. Never commit credentials; the tailnet auth key and the OMDb key are
   GitHub Actions secrets.
