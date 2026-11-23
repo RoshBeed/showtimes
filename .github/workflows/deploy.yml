@@ -48,6 +48,11 @@ jobs:
       # No API key: the job's GitHub identity token is exchanged for a short-lived Anthropic one
       # under the account's federation rule. The SDK reads the token file at each exchange, so a
       # fresh token is written every four minutes for as long as Claude runs.
+      - name: Build the ingest container
+        if: steps.listings.outputs.published == 'true'
+        uses: ./.github/actions/ingest-image
+        with:
+          target: api
       - name: Clean new film titles with Claude
         if: steps.listings.outputs.published == 'true'
         env:
@@ -57,7 +62,6 @@ jobs:
           ANTHROPIC_SERVICE_ACCOUNT_ID: svac_013U29rWXbxzfDi7WLqJPDPw
           ANTHROPIC_WORKSPACE_ID: wrkspc_01FdaqMPTvrKhtpGjXhoC28v
         run: |
-          docker build --target api -f ingest/Dockerfile -t showtimes-ingest .
           oidc="$RUNNER_TEMP/oidc"
           mkdir -p "$oidc"
           identity() {
