@@ -4,7 +4,7 @@
 // the page's address, so a bookmark is a saved view. Driven by keys, clicks or taps.
 import { ics } from './calendar';
 import { DEFAULT_COLUMNS, DEFAULT_FIELDS, expandArea, FIELDS, learnLondon, LONDON, needsEveryCinema, PAGE, readChoice, readView, writeChoices, writeView, type Field, type Order, type View } from './choices';
-import { openListings } from './db';
+import { DATA, openListings } from './db';
 import * as q from './queries';
 import { certificateAge, formats } from './tags';
 import { REPO, VERSION, versionHref, versionLabel } from './version';
@@ -1582,7 +1582,7 @@ window.addEventListener('hashchange', () => { if (location.hash !== drawn) rende
 narrow.addEventListener('change', () => { if (page) render(); });
 
 function load(all: boolean): Promise<void> {
-  return openListings(all ? './data/listings.json.gz' : './data/london.json.gz').then(
+  return openListings(`./data/${all ? DATA.listings : DATA.london}`).then(
     (listings) => {
       db = listings;
       whole = all;

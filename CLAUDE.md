@@ -6,7 +6,11 @@
   no UI framework) is a static page that holds the listings in memory. Its build
   (`npm run listings`) exports every chain's file into JSON documents (every cinema, and Greater
   London alone, which is loaded while only its cinemas are ticked) plus `areas.json`, built into
-  the page; the browser runs no SQL and no WebAssembly.
+  the page; the browser runs no SQL and no WebAssembly. The documents' names carry a hash of their
+  contents (`listings-<hash>.json.gz`, listed in `data/manifest.json` and built into the page as
+  `__DATA__`), so a page always fetches the listings it was built with, whatever Pages' 10-minute
+  cache holds. When the full document passes about 8 MB compressed (4.6 MB on 2026-11-23), split
+  it by region as `london` is split.
 - Each chain is two adapters. `ingest/src/showtimes_ingest/chains/<chain>/` fetches it (the
   interface is in `chains/__init__.py`); `site/src/chains/<chain>.ts` reads its stored record
   into the shared vocabulary at export (`Chain` in `chains/chain.ts`): cinema names and towns, tag
