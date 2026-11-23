@@ -1,4 +1,4 @@
-import { PAGE } from './choices';
+import { onlyPick, PAGE, pick, picked } from './choices';
 import { held, help, openCommand, say, show } from './cmdline';
 import { KINDS } from './columns';
 import { panel, where } from './drawer';
@@ -9,6 +9,16 @@ import { app, db, londonOnly, page, ticks, view } from './state';
 
 /** Marks: m{a-z} keeps the view, '{a-z} comes back to it. Kept for this visit only. */
 const marks = new Map<string, string>();
+/** Visual line mode (V) in a column of choices: the line it began on and the line in hand.
+ *  Every line between them is chosen; a showing must offer any of them. */
+let visual: { focus: number; anchor: number; cursor: number } | undefined;
+/** The keys that move the line in hand, and so stretch a visual selection; any other key ends it. */
+const STRETCH = new Set(['j', 'k', 'ArrowDown', 'ArrowUp', 'G', 'g', 'H', 'M', 'L', 'Ctrl-d', 'Ctrl-u', 'Ctrl-f', 'Ctrl-b', 'PageDown', 'PageUp']);
+function endVisual() {
+  if (!visual) return;
+  visual = undefined;
+  say('');
+}
 
 /** The column in hand, and the lines in it. */
 export function inHand() {
@@ -17,7 +27,9 @@ export function inHand() {
   const showtimes = view.focus === view.columns.length;
   const pane = app.querySelector<HTMLElement>('.column.focused');
   const length = facet ? at.options[view.focus].length : showtimes ? at.total : 0;
-  const here = facet ? Math.max(0, at.options[view.focus].indexOf(view.picks[facet])) : view.row;
+  const here = facet
+    ? visual?.focus === view.focus ? visual.cursor : Math.max(0, at.options[view.focus].indexOf(picked(view, facet)[0]))
+    : view.row;
   return { at, facet, showtimes, pane, length, here };
 }
 /** Go to a line of the column in hand: a choice, or a showtime (drawing more of them if need be). */
@@ -26,9 +38,17 @@ export function goTo(index: number) {
   if (!length) return;
   index = Math.max(0, Math.min(length - 1, index));
   if (facet) {
-    const value = at.options[view.focus][index];
-    if (value === undefined) delete view.picks[facet];
-    else view.picks[facet] = value;
+    const lines = at.options[view.focus];
+    if (visual?.focus === view.focus) {
+      // Every line from where V was pressed to this one; All among them adds nothing.
+      visual.cursor = index;
+      const values = lines.slice(Math.min(visual.anchor, index), Math.max(visual.anchor, index) + 1);
+      pick(view, facet, values.filter((value): value is string => value !== undefined));
+      say('-- VISUAL LINE --');
+    } else {
+      const value = lines[index];
+      pick(view, facet, value === undefined ? [] : [value]);
+    }
     view.row = 0;
     at.more = 0;
     at.draw();
@@ -101,6 +121,12 @@ document.addEventListener('keydown', (event) => {
   held.typed = '';
   held.pending = '';
   show('');
+  if (visual && (visual.focus !== view.focus || !(STRETCH.has(key) || pair === 'g'))) {
+    // Esc, Enter or V again keep what is chosen; any other key ends the selection, then acts.
+    const keep = key === 'Escape' || key === 'Enter' || key === 'V';
+    endVisual();
+    if (keep) return event.preventDefault();
+  }
   if (key === 'Escape') return; // cancels the count or the half-typed command
 
   const { at, facet, pane, length, here } = inHand();
@@ -148,7 +174,7 @@ document.addEventListener('keydown', (event) => {
       zt: () => scrollTo('start'), zEnter: () => scrollTo('start'),
       zb: () => scrollTo('end'), 'z-': () => scrollTo('end'),
       dd: () => {
-        const id = (facet === 'film' ? view.picks.film : undefined) ?? shown?.filmId; // the chosen film, or the highlighted showtime's
+        const id = (facet === 'film' ? onlyPick(view, 'film') : undefined) ?? shown?.filmId; // the chosen film, or the highlighted showtime's
         if (!id) return say('No film here', true);
         hideFilm(id);
         say(`"${q.film(db, id)?.title ?? id}" hidden; u brings it back`);
@@ -180,6 +206,11 @@ document.addEventListener('keydown', (event) => {
     return start === index && start > 0 ? startOf(start - 1) : start;
   };
   const keys: Record<string, () => void> = {
+    V: () => {
+      if (!facet) return say('V chooses lines in a column of choices', true);
+      visual = { focus: view.focus, anchor: here, cursor: here };
+      goTo(here);
+    },
     j: () => goTo(here + n), ArrowDown: () => goTo(here + n),
     k: () => goTo(here - n), ArrowUp: () => goTo(here - n),
     h: () => column(view.focus - n), ArrowLeft: () => column(view.focus - n), b: () => column(view.focus - n), Backspace: () => column(view.focus - n), '-': () => column(view.focus - n),

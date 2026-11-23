@@ -51,7 +51,7 @@ test("Greater London's listings will do while only its cinemas are ticked", () =
 test('the view is read from and written to the address', () => {
   const view = readView('#cols=film,cinema,screen&film=HO1&cinema=155&order=film:rating&fields=seats,ends&sort=seats&desc=1&q=imax&col=3&row=12');
   expect(view).toEqual({
-    columns: ['film', 'cinema', 'screen'], picks: { film: 'HO1', cinema: '155' }, orders: { film: 'rating' }, fields: ['ends', 'seats'],
+    columns: ['film', 'cinema', 'screen'], picks: { film: ['HO1'], cinema: ['155'] }, orders: { film: 'rating' }, fields: ['ends', 'seats'],
     focus: 2, row: 11, sort: 'seats', descending: true, text: 'imax',
   });
   expect(writeView(view)).toBe('#cols=film,cinema,screen&film=HO1&cinema=155&order=film:rating&fields=ends,seats&sort=seats&desc=1&q=imax&col=3&row=12');
@@ -60,6 +60,10 @@ test('the view is read from and written to the address', () => {
   expect(readView('#cols=film,nonsense,film&day=2026-11-20').columns).toEqual(['film']);
   expect(readView('#cols=film&day=2026-11-20').picks).toEqual({});
   expect(readView('').columns).toEqual(DEFAULT_COLUMNS);
+  // Several choices in a column repeat its name, and any value survives, commas and ampersands too.
+  const several = readView('#cols=film,person&film=a&film=b&person=Smith%2C%20J%20%26%20Co');
+  expect(several.picks).toEqual({ film: ['a', 'b'], person: ['Smith, J & Co'] });
+  expect(writeView(several)).toBe('#cols=film,person&film=a&film=b&person=Smith%2C%20J%20%26%20Co');
   expect(readView('#fields=nonsense').fields).toEqual([]); // just the time and film
 });
 

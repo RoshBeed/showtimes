@@ -33,6 +33,7 @@ const NORMAL: [string, string][] = [
   ['dd', 'Hide the film everywhere'],
   ['yy', 'Yank (copy) the link to this view'],
   ['u  Ctrl-r', 'Undo or redo'],
+  ['V', 'Visual line: j k G gg choose every line from where V was pressed; Esc or Enter keeps them'],
   ['m{a-z}', 'Mark this view; then ‘{a-z} or `{a-z} comes back to it'],
   ['gx', 'Open the showing on its cinema\u2019s site to book it'],
   ['K', 'Play the film’s trailer'],
