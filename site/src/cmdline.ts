@@ -39,7 +39,7 @@ const NORMAL: [string, string][] = [
   ['gx', 'Open the showing on its cinema\u2019s site to book it'],
   ['K', 'Play the film’s trailer'],
   ['Ctrl-g', 'Where you are'],
-  ['Esc', 'Cancel a count or a half-typed command'],
+  ['Esc', 'Cancel a count or a half-typed command; with nothing to cancel, open the settings'],
 ];
 /** Ex commands, for :help. */
 const EX: [string, string][] = [
@@ -49,7 +49,7 @@ const EX: [string, string][] = [
   [':sort  :sort n  :sort rating', 'Order a column A–Z, by showings, or (films) by rating'],
   [':sort {by}  :sort! {by}', 'Order the showtimes by date, time, film, cinema, screen or seats; ! reverses'],
   [':filter {text}', 'Keep only the lines with that text; :filter alone shows them all again'],
-  [':set', 'Settings'],
+  [':set  Esc', 'Settings'],
   [':set london  nolondon  london!', 'London only on, off, or switched'],
   [':set events  noevents', 'Event cinema shown or left out'],
   [':set fields=…  fields+=ends  fields-=picture  fields&', 'What each showtime shows (ends, picture, language, access, cert, cinema, screen, seats); & is the default'],
@@ -69,7 +69,7 @@ const DRAWER: [string, string][] = [
   ['i', 'Type in the cinema search; Esc leaves it'],
   ['dd  <<  >>', 'Remove a column, or move it left or right'],
   ['u  Ctrl-r', 'Undo or redo'],
-  ['q  Esc  :q', 'Close the drawer'],
+  ['q  Esc  :q', 'Close the settings'],
 ];
 export const help = h('dialog', { class: 'panel keylist', 'aria-label': 'Help' }) as HTMLDialogElement;
 help.addEventListener('click', (event) => { if (event.target === help) help.close(); });

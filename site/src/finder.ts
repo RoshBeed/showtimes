@@ -13,22 +13,11 @@ import { note, noteNow, startHistory } from './history';
 import * as q from './queries';
 import { address, app, cursors, db, hidden, narrow, page, scope, setDb, setDrawn, setPage, setView, ticks, toggle, view } from './state';
 import { formats } from './tags';
-import { about } from './version';
 
 /** Whether `db` holds every cinema's showings, or only Greater London's. */
 let whole = false;
 let everything: Promise<void> | undefined;
 
-/** The title goes back to the default view, keeping the cinemas and films chosen in the settings. */
-function home(): HTMLElement {
-  const element = h('a', { href: location.pathname + location.search }, 'showtimes');
-  element.onclick = (event) => {
-    event.preventDefault();
-    if (location.hash) history.pushState(null, '', location.pathname + location.search);
-    render();
-  };
-  return element;
-}
 /** The link to book a showing on its chain's site, named after the site: `Book on odeon.co.uk`. */
 function bookingLink(show: { cinemaId: string; id: string }): Node[] {
   const url = q.booking(db, show);
@@ -110,7 +99,7 @@ export function render() {
   const detail = h('div', { class: 'column details' });
   const panes = [
     ...columns.map((facet, index) => h('div', { class: `column ${facet}` }, bar(KINDS[facet].title, ...finding(index), sorters[index]), lists[index])),
-    h('div', { class: 'column showtimes' }, bar('Showtimes', ...finding(results), total), shows),
+    h('div', { class: 'column showtimes' }, bar('Showtimes', ...finding(results), total, settings()), shows),
     detail,
   ];
   // Clicking a column's heading or its empty space goes to it and shows its choices, changing nothing.
@@ -129,12 +118,11 @@ export function render() {
 
   document.title = 'showtimes';
   app.className = 'finder-page';
-  // No header: the footer names the site and opens the settings; on a phone, where the footer is
-  // hidden, the row of steps at the top ends with the settings.
+  // No header and no footer: the settings open with Esc, or with the button at the right of the
+  // showtimes' heading; on a phone, with the button that ends the row of steps at the top.
   app.replaceChildren(
     h('div', { class: 'topbar' }, steps, settings()),
     h('div', { class: 'columns finder' }, ...panes),
-    footer(['hjkl move', '/ search', 'u undo', ':vs add a column', ':help all keys']),
   );
 
   const state = {
@@ -424,7 +412,7 @@ function quickStart(): Node {
     h('p', {}, `What's on at ${db.chains.size ? [...db.chains.values()].map((chain) => chain.name).join(', ') : 'the cinema'}, on which screen, and how big that screen is.`),
     facts([
       ['Choose', 'a day, a film, a cinema… in any column; each counts what the others leave. Shift-click picks a run of lines, Ctrl- or Cmd-click one more. All at the top takes them back.'],
-      ['Columns', 'Settings adds, removes and orders them; so do :vs day, :q, << and >>.'],
+      ['Columns', 'Settings (Esc) adds, removes and orders them; so do :vs day, :q, << and >>.'],
       ['Keys', 'it is driven as vim is: hjkl, / and n, :set, :sort, u and the rest. :help lists them all.'],
       ['Bookmark', 'the columns, your choices and your cinemas are all in the page address. Bookmark it and it opens the same way anywhere.'],
     ]));
@@ -438,23 +426,7 @@ export function hideFilm(id: string) {
 
 /** The button that opens the settings drawer, as `:set` does. */
 function settings(): HTMLButtonElement {
-  return button('Settings', openPanel, { class: 'open-panel', 'aria-keyshortcuts': 'o' });
-}
-
-/** The line at the foot of the page: the site's name, the settings, the keys, and how fresh the listings are. */
-function footer(hints: string[]): HTMLElement {
-  const stamp = db.ingested;
-  const old = stamp !== null && Date.now() - Date.parse(stamp) > 8 * 86400000;
-  return h('footer', {},
-    h('span', { class: 'keys' }, h('span', { class: 'name' }, home()), ' · ', settings(), '   ', ...hints.flatMap((hint) => {
-      const [keys, ...words] = hint.split(' ');
-      return [h('kbd', {}, keys), ` ${words.join(' ')}   `];
-    })),
-    h('span', { class: 'status' },
-      `listings from ${stamp ? day(stamp) : 'no ingest yet'}`,
-      ...(db.fullUntil ? [` · full to ${day(db.fullUntil)}`] : []),
-      ...(old ? [h('span', { class: 'stale' }, ' · more than a week old')] : []),
-      ' · ', about()));
+  return button('Settings', openPanel, { class: 'open-panel', title: 'Settings (Esc)', 'aria-keyshortcuts': 'Escape' });
 }
 
 function load(all: boolean): Promise<void> {
