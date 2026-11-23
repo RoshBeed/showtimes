@@ -16,6 +16,10 @@ from showtimes_ingest.log import log
 USER_AGENT = "showtimes/1.0 (+https://github.com/RoshBeed/showtimes)"
 
 
+class NotFound(RuntimeError):
+    """A 404: the page is gone, which a chain may expect for a film it has just withdrawn."""
+
+
 class Client:
     def __init__(self, base, pause=1.0, timeout=60):
         self.base, self.pause, self.timeout = base.rstrip("/"), pause, timeout
@@ -60,7 +64,8 @@ class Client:
                     encoding = "windows-1252"
                 body = response.read().decode(encoding)
         except urllib.error.HTTPError as error:
-            raise RuntimeError(f"HTTP {error.code} from {request.full_url}") from None
+            kind = NotFound if error.code == 404 else RuntimeError
+            raise kind(f"HTTP {error.code} from {request.full_url}") from None
         except (urllib.error.URLError, TimeoutError) as error:
             reason = getattr(error, "reason", error)
             raise RuntimeError(f"{request.full_url}: {reason}") from None

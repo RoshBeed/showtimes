@@ -7,7 +7,8 @@ from urllib.parse import urlsplit
 from showtimes_ingest import refresh
 from showtimes_ingest.chains import admitone
 from showtimes_ingest.chains.pages import parse
-from showtimes_ingest.http import Client
+from showtimes_ingest.http import Client, NotFound
+from showtimes_ingest.log import log
 from showtimes_ingest.store import utc
 from showtimes_ingest.week import TZ
 
@@ -347,7 +348,13 @@ class Jacro:
                     raise RuntimeError(f"Jacro: no film directory for {cinema}")
                 movies, screenings = [], []
                 for url in links:
-                    page = self.movie_page(parse(client.text(url)), cinema, url, today)
+                    # A film page gone entirely is a film withdrawn, as "Film not available here" is.
+                    try:
+                        html = client.text(url)
+                    except NotFound:
+                        log.warning("%s: %s is gone; skipping it", cinema, url)
+                        continue
+                    page = self.movie_page(parse(html), cinema, url, today)
                     if page is None:
                         continue
                     film, rows = page
