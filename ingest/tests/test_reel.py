@@ -5,6 +5,7 @@ from pathlib import Path
 
 from showtimes_ingest.chains import jacro, reel
 from showtimes_ingest.chains.pages import parse
+from showtimes_ingest.http import NotFound
 from showtimes_ingest.store import connect
 
 TODAY = date(2026, 11, 19)
@@ -98,6 +99,23 @@ class ReelTest(unittest.TestCase):
             date(2026, 7, 1),
         )
         self.assertEqual(shows[0]["starts_at"], "2026-07-01T19:30:00Z")
+
+    def test_a_film_page_that_is_gone_is_skipped_like_a_withdrawn_film(self):
+        gone = "https://reelcinemas.co.uk/chorley/film/456/gone/"
+
+        class GoneFilm(ReelSite):
+            def text(self, path):
+                if path == gone:
+                    self.requests += 1
+                    raise NotFound(f"HTTP 404 from {path}")
+                if path == "https://reelcinemas.co.uk/chorley/":
+                    self.requests += 1
+                    return FILMS.replace("</div>", f'<a href="{gone}">Gone</a></div>')
+                return super().text(path)
+
+        data = reel.collect(GoneFilm(), TODAY)
+        self.assertEqual([film["id"] for film in data["films"]], ["chorley/123"])
+        self.assertEqual(len(data["screenings"]), 1)
 
     def test_a_film_the_cinema_no_longer_shows_is_skipped(self):
         root = parse(
