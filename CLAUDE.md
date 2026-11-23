@@ -124,8 +124,8 @@
 - The README is for visitors only: what the site does and how to use it, with one listings badge
   at the top. No development detail (that belongs here) and no keys (`:help` has them). Keep it
   short. The badge is a shields.io endpoint, `data/badge.json` on the live site, written by the
-  export from the listings themselves (`site/src/badge.ts`): green with the cinema count and fetch dates, or the
-  chains not fetched for over nine days. Workflow badges would show runs, not what the site shows.
+  export from the listings themselves (`site/src/badge.ts`): green with when the chains were updated, or the
+  chains whose latest run failed and those not updated for over nine days. Workflow badges would show runs, not what the site shows.
 - Adding a chain: (1) a package `ingest/src/showtimes_ingest/chains/<chain>/` writing the
   `store.py` schema and offering what `chains/__init__.py` lists (`NAME`, `check`, `ingest`,
   `settled_reason`, `search_title`), added to `CHAINS` with tests against a fake; a chain on a
