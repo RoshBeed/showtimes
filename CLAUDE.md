@@ -26,6 +26,12 @@
   Claude decided. Deleting an entry from `titles.json` makes Claude decide it again. It signs in
   through Workload Identity Federation from the Publish job's GitHub OIDC token (no API key; the
   rule, organization, service account and workspace IDs are in `deploy.yml`).
+- IMDb and Metacritic scores are looked up once per film across every chain, after the titles are
+  cleaned (`showtimes-ratings`, `ingest/src/showtimes_ingest/ratings.py`, in Publish's titles job):
+  one OMDb lookup per clean title and year, kept in `ratings.json` on the data release so OMDb is
+  asked only about films it has not seen (the free key allows 1,000 a day); IMDb's own file
+  refreshes the IMDb score each run. The export reads it by the same key as `titleKey`; keep
+  `ratings.title_key` and `titleKey` in step.
 - The schema lives in `ingest/src/showtimes_ingest/store.py`. The site's tests read it from
   there, so change the schema and `site/src/export.ts` together. `site/src/queries.ts` answers
   every question with a loop over the showings; keep key presses free of anything slower.
