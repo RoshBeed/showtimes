@@ -41,9 +41,9 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - name: Build the shared ingest container
-        env:
-          TARGET: ${{ inputs.browser && 'runtime' || 'api' }}
-        run: docker build --target "$TARGET" -f ingest/Dockerfile -t showtimes-ingest .
+        uses: ./.github/actions/ingest-image
+        with:
+          target: ${{ inputs.browser && 'runtime' || 'api' }}
       - name: Fetch this provider's stored listings
         if: ${{ !inputs.validation }}
         run: bash scripts/listings.sh download "$CHAIN"

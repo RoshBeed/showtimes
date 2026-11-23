@@ -1,0 +1,24 @@
+name: Ingest image
+description: >
+  Builds a stage of ingest/Dockerfile as the local image showtimes-ingest, restoring its layers
+  from the GitHub Actions cache, so apt, curl-impersonate and WebKit are downloaded only when
+  the Dockerfile or what it copies changes.
+inputs:
+  target:
+    description: The Dockerfile stage (api, runtime or checks)
+    required: true
+runs:
+  using: composite
+  steps:
+    - uses: docker/setup-buildx-action@v3
+    - uses: docker/build-push-action@v6
+      with:
+        context: .
+        file: ingest/Dockerfile
+        target: ${{ inputs.target }}
+        tags: showtimes-ingest
+        # Into the runner's Docker, for scripts/ingest.sh and docker run.
+        load: true
+        # One cache per stage; main's cache is also read by pull requests.
+        cache-from: type=gha,scope=ingest-${{ inputs.target }}
+        cache-to: type=gha,scope=ingest-${{ inputs.target }},mode=max

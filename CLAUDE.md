@@ -81,7 +81,9 @@
   GitHub Actions secrets.
 - `site/e2e/` holds Playwright tests that drive the built site by keys, clicks and scrolling
   against a small set of listings (`npm run e2e`; `PW_CHANNEL=chrome` uses an installed Chrome).
-  Add one for any change to how the site is navigated.
+  Add one for any change to how the site is navigated. CI runs them in Playwright's own image
+  (`mcr.microsoft.com/playwright:v<version>-noble` in `ci.yml`); keep its version the same as
+  `@playwright/test` in `site/package.json` when either changes.
 - Ship through a pull request and CI. The Publish workflow (`deploy.yml`, "Publish site and listings") publishes `main` and the latest listings to GitHub Pages
   (showtimes.ramuk.net). `main` is the only long-lived branch: every change reaches it by a
   pull request from its own short-lived branch cut from `main`; never push straight to it.
@@ -127,7 +129,9 @@
 - Build `ingest/Dockerfile` from the repo root: `checks` runs lint/tests; `api`
   contains the pinned curl binary without WebKit; default `runtime` includes WebKit.
   `bash scripts/ingest.sh <provider> run` writes the mounted data file without publishing.
-  CI and Ingest use these same containers. Vista accepts at most five cinema IDs
+  CI, Ingest and Publish use these same containers, built by `.github/actions/ingest-image`
+  with the GitHub Actions layer cache, so apt, curl-impersonate and WebKit download only when
+  the Dockerfile or what it copies changes. Vista accepts at most five cinema IDs
   per request; collect only the cinemas advertised for each business date, with
   no arbitrary future cutoff. Guest tokens stay in memory/stdin, never logs or files.
 - The README is for visitors only: what the site does and how to use it, with one listings badge
