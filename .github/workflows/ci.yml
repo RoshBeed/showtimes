@@ -29,10 +29,18 @@ jobs:
       validation: true
   site:
     runs-on: ubuntu-latest
+    # Playwright's own image, with its browsers and their system packages already installed.
+    # Keep its version the same as @playwright/test in site/package.json.
+    container:
+      image: mcr.microsoft.com/playwright:v1.65.1-noble
+      options: --ipc=host
+    defaults:
+      run:
+        working-directory: site
     steps:
       - uses: actions/checkout@v7
-      - name: Check the site and browser interactions in Docker
-        run: |
-          docker run --rm --ipc=host -v "$PWD:/work" -w /work/site \
-            --mount type=volume,target=/work/site/node_modules,volume-nocopy \
-            node:26-bookworm-slim sh -c 'npm ci && npm test && npm run build && npx playwright install --with-deps chromium && npm run e2e -- --trace off'
+      - run: npm ci
+      - run: npm test
+      - run: npm run build
+      - name: Browser interactions
+        run: npm run e2e -- --trace off
