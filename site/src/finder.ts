@@ -49,6 +49,97 @@ export function rebuild() {
 
 export const lastColumn = () => view.columns.length + (narrow.matches ? 1 : 0); // a phone shows the details as a column of their own
 
+// The columns' own edits, made the same way by keys (<< >>), ex commands (:vs :q) and the mouse.
+/** Add a column at a place among the others, and go to it. */
+export function addColumn(facet: q.Facet, at: number) {
+  view.columns.splice(Math.max(0, Math.min(at, view.columns.length)), 0, facet);
+  view.focus = view.columns.indexOf(facet);
+  rebuild();
+}
+/** Close a column, and forget what was chosen in it and its order. */
+export function closeColumn(index: number) {
+  const facet = view.columns[index];
+  if (!facet) return;
+  view.columns.splice(index, 1);
+  delete view.picks[facet];
+  delete view.orders[facet];
+  if (view.focus > index) view.focus -= 1; // the column in hand stays in hand; closing it goes to the next
+  view.focus = Math.max(0, Math.min(view.focus, view.columns.length));
+  rebuild();
+}
+/** Move a column to another place among the columns, and go to it. */
+export function moveColumn(from: number, to: number) {
+  const facet = view.columns[from];
+  to = Math.max(0, Math.min(view.columns.length - 1, to));
+  if (!facet || to === from) return;
+  view.columns.splice(from, 1);
+  view.columns.splice(to, 0, facet);
+  view.focus = to;
+  rebuild();
+}
+
+/** A column of choices moves by dragging its heading onto another such column: the half the
+ *  pointer is over says which side it goes. The showtimes and the details stay where they are. */
+function draggable(panes: HTMLElement[], index: number, count: number) {
+  const pane = panes[index];
+  const heading = pane.querySelector('.bar h2') as HTMLElement;
+  heading.draggable = true;
+  heading.addEventListener('dragstart', (event) => {
+    event.dataTransfer?.setData('application/x-column', String(index));
+    if (event.dataTransfer) event.dataTransfer.effectAllowed = 'move';
+    pane.classList.add('dragging');
+  });
+  heading.addEventListener('dragend', () => {
+    for (const each of panes) each.classList.remove('dragging', 'drop-before', 'drop-after');
+  });
+  const side = (event: DragEvent) => {
+    const box = pane.getBoundingClientRect();
+    return event.clientX < box.left + box.width / 2 ? 'before' : 'after';
+  };
+  pane.addEventListener('dragover', (event) => {
+    if (!event.dataTransfer?.types.includes('application/x-column')) return;
+    event.preventDefault();
+    event.dataTransfer.dropEffect = 'move';
+    const before = side(event) === 'before';
+    pane.classList.toggle('drop-before', before);
+    pane.classList.toggle('drop-after', !before);
+  });
+  pane.addEventListener('dragleave', () => pane.classList.remove('drop-before', 'drop-after'));
+  pane.addEventListener('drop', (event) => {
+    const from = Number(event.dataTransfer?.getData('application/x-column'));
+    if (!Number.isInteger(from) || from < 0 || from >= count) return;
+    event.preventDefault();
+    const place = side(event) === 'before' ? index : index + 1; // among the columns as they are now
+    moveColumn(from, place > from ? place - 1 : place);
+  });
+}
+
+/** The + on the showtimes' heading: a short list of the columns not shown, the chosen one added
+ *  just before the showtimes. j and k or the arrows move, Enter chooses, Esc or a click away closes. */
+function addMenu(opener: HTMLButtonElement, shut: q.Facet[]) {
+  document.querySelector('.add-menu')?.remove();
+  const items = shut.map((facet) => button(KINDS[facet].title, () => { close(); addColumn(facet, view.columns.length); }, { role: 'menuitem' }));
+  const menu = h('div', { class: 'add-menu', role: 'menu', 'aria-label': 'Add a column' }, ...items);
+  const away = (event: MouseEvent) => { if (!menu.contains(event.target as Node) && event.target !== opener) close(); };
+  function close() {
+    menu.remove();
+    document.removeEventListener('mousedown', away, true);
+  }
+  menu.addEventListener('keydown', (event) => {
+    event.stopPropagation(); // the menu's keys are its own, not normal mode's
+    const at = items.indexOf(document.activeElement as HTMLButtonElement);
+    const step = ({ j: 1, ArrowDown: 1, k: -1, ArrowUp: -1 } as Record<string, number>)[event.key];
+    if (step) { event.preventDefault(); items[(at + step + items.length) % items.length].focus(); }
+    else if (event.key === 'Escape') { event.preventDefault(); close(); opener.focus(); }
+  });
+  const box = opener.getBoundingClientRect();
+  menu.style.left = `${Math.round(box.left)}px`;
+  menu.style.top = `${Math.round(box.bottom + 4)}px`;
+  document.body.append(menu);
+  document.addEventListener('mousedown', away, true);
+  items[0]?.focus();
+}
+
 export function render() {
   address();
   setDrawn(location.hash);
@@ -97,11 +188,16 @@ export function render() {
   const shows = h('ul', { class: 'cards' });
   const total = h('span', { class: 'dim count' });
   const detail = h('div', { class: 'column details' });
+  const closer = (index: number) => button('×', () => closeColumn(index), { class: 'close', 'aria-label': `Close the ${KINDS[columns[index]].title} column`, title: 'Close this column' });
+  const shut = q.FACETS.filter((facet) => !columns.includes(facet));
+  const adder = shut.length ? [button('+', () => addMenu(adder[0] as HTMLButtonElement, shut), { class: 'add', 'aria-label': 'Add a column', title: 'Add a column' })] : [];
   const panes = [
-    ...columns.map((facet, index) => h('div', { class: `column ${facet}` }, bar(KINDS[facet].title, ...finding(index), sorters[index]), lists[index])),
+    ...columns.map((facet, index) => h('div', { class: `column ${facet}` }, bar(KINDS[facet].title, ...finding(index), sorters[index], closer(index)), lists[index])),
     h('div', { class: 'column showtimes' }, bar('Showtimes', ...finding(results), total), shows),
     detail,
   ];
+  panes[results].querySelector('.bar')?.prepend(...adder);
+  columns.forEach((_, index) => draggable(panes, index, columns.length));
   // Clicking a column's heading or its empty space goes to it and shows its choices, changing nothing.
   panes.slice(0, results + 1).forEach((pane, index) => pane.addEventListener('click', (event) => {
     if ((event.target as Element).closest('li, button, input')) return;
@@ -119,6 +215,7 @@ export function render() {
 
   document.title = 'showtimes';
   app.className = 'finder-page';
+  document.querySelector('.add-menu')?.remove(); // a menu of the columns as they were
   // No header and no footer: the settings open with Esc, or with the button at the right of the
   // details' heading, at the top right; on a phone, with the button that ends the row at the top: ‹, the steps, then Settings.
   app.replaceChildren(

@@ -54,6 +54,19 @@ button:disabled { color: var(--dim); cursor: default; }
 .bar select { max-width: 76px; padding: 2px 3px; }
 .bar button { padding: 2px 6px; }
 .bar .count { flex: none; }
+/* By mouse: × closes a column of choices (shown on its heading's hover, or while it is in hand),
+   + on the showtimes' heading adds one, and a heading dragged onto another column moves it. */
+.bar .close, .bar .add { flex: none; border: 0; background: none; color: var(--dim); padding: 2px 5px; font-size: 1.05rem; line-height: 1; }
+.bar .close:hover, .bar .add:hover, .bar .close:focus-visible, .bar .add:focus-visible { color: var(--accent); }
+.bar .close { visibility: hidden; }
+.column:hover .bar .close, .column.focused .bar .close { visibility: visible; }
+.column:not(.showtimes):not(.details) .bar h2[draggable="true"] { cursor: grab; }
+.column.dragging { opacity: 0.5; }
+.column.drop-before { box-shadow: inset 3px 0 var(--accent); }
+.column.drop-after { box-shadow: inset -3px 0 var(--accent); }
+.add-menu { position: fixed; z-index: 20; display: flex; flex-direction: column; min-width: 150px; padding: 4px; background: var(--bg); border: 1px solid var(--line); border-radius: 6px; box-shadow: 0 10px 30px rgba(0, 0, 0, 0.45); }
+.add-menu button { border: 0; background: none; text-align: left; padding: 5px 10px; color: var(--text); border-radius: 4px; }
+.add-menu button:hover, .add-menu button:focus { background: var(--select); color: var(--text); outline: none; }
 
 /* Choices and showtimes: one line each, the name first; hovering shows all of it. */
 .facet, .cards { list-style: none; margin: 0; padding: 0; }
@@ -150,6 +163,9 @@ li.heads button:hover, li.heads button.on { color: var(--accent); }
   .panel { margin: 0; width: 100vw; height: 100dvh; max-height: 100dvh; border: 0; border-radius: 0; box-shadow: none; }
   /* The showtimes' own Settings button gives way to the one in the row at the top. */
   .bar .open-panel { display: none; }
+  /* No hover on a phone: × shows on every column, and headings are not dragged. */
+  .bar .close { visibility: visible; }
+  .column:not(.showtimes):not(.details) .bar h2[draggable="true"] { cursor: default; }
   .topbar { display: flex; gap: 6px; align-items: center; border-bottom: 1px solid var(--line); }
   .steps { display: flex; flex: 1; min-width: 0; gap: 6px; overflow-x: auto; padding: 8px 0; }
   .topbar .open-panel { flex: none; padding: 6px 10px; color: var(--accent); border-color: var(--accent); }
