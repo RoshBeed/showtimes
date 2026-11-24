@@ -466,6 +466,34 @@ test('a phone shows one column at a time, and a choice moves on to the next', as
   await expect.poll(wider).toBe(0);
 });
 
+test("on a phone ‹ and the phone's own back go back a column, keeping what is chosen", async ({ page }) => {
+  await page.setViewportSize({ width: 375, height: 812 });
+  await visit(page, '/');
+  const shown = page.locator('.column:visible .bar h2');
+  const back = page.getByRole('button', { name: 'Back' });
+  await expect(back).toBeDisabled(); // nothing before the first column
+  await page.locator('.column.chain li', { hasText: 'All' }).first().click();
+  await page.locator('.column.cinema li', { hasText: 'All' }).first().click();
+  await page.locator('.column.film li', { hasText: 'Dune' }).click();
+  await expect(page.locator('.column:visible')).toHaveClass(/showtimes/);
+  await back.click();
+  await expect(shown).toHaveText('Film');
+  await expect(page.locator('.column.film li.selected')).toHaveText(/Dune/);
+  await page.goBack(); // the phone's own back
+  await expect(shown).toHaveText('Cinema');
+  await expect(page).toHaveURL(/film=/); // still on the site, Dune still chosen
+  await page.goBack();
+  await expect(shown).toHaveText('Chain');
+  await expect(back).toBeDisabled();
+  await expect(page).toHaveURL(/film=/);
+  // The steps at the top go back too, and the history stays in step with them.
+  await page.locator('.steps button', { hasText: 'Showtimes' }).click();
+  await page.locator('.steps button', { hasText: 'Chain' }).click();
+  await expect(shown).toHaveText('Chain');
+  await expect(back).toBeDisabled();
+  await expect(page).toHaveURL(/film=/);
+});
+
 test('more than one chain: films shared, a Chain column, each cinema marked and booked with its own chain', async ({ page }) => {
   const two = listings(true);
   await page.route('**/data/*.json.gz', (route) => route.fulfill({ contentType: 'application/json', body: route.request().url().includes('london') ? two.london : two.all }));

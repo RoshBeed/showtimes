@@ -27,7 +27,7 @@ button:disabled { color: var(--dim); cursor: default; }
 #app { display: flex; flex-direction: column; height: 100vh; height: 100dvh; padding: 0 16px; }
 /* Where lines are marked, the line in hand: the cursor that j and k move. */
 .facet li.cursor { outline: 1px dashed var(--accent); outline-offset: -1px; }
-/* Only a phone shows this row: the steps, then the settings. */
+/* Only a phone shows this row: back, the steps, then the settings. */
 .topbar { display: none; }
 .about a { color: inherit; }
 .about a:hover { color: var(--accent); }
@@ -153,7 +153,8 @@ li.heads button:hover, li.heads button.on { color: var(--accent); }
   .topbar { display: flex; gap: 6px; align-items: center; border-bottom: 1px solid var(--line); }
   .steps { display: flex; flex: 1; min-width: 0; gap: 6px; overflow-x: auto; padding: 8px 0; }
   .topbar .open-panel { flex: none; padding: 6px 10px; color: var(--accent); border-color: var(--accent); }
-  .steps button { flex: none; padding: 6px 10px; }
+  .steps button, .topbar .back { flex: none; padding: 6px 10px; }
+  .topbar .back:disabled { opacity: 0.35; }
   .steps button.here { border-color: var(--accent); color: var(--accent); }
   .columns { overflow: hidden; }
   /* A column scrolls up and down only; the steps above move between columns. */

@@ -11,8 +11,10 @@ import './cmdline';
 import './drawer';
 import './keys';
 import { render, start } from './finder';
+import { backed } from './history';
 import { drawn, narrow, page } from './state';
 
 window.addEventListener('hashchange', () => { if (location.hash !== drawn) render(); });
+window.addEventListener('popstate', backed);
 narrow.addEventListener('change', () => { if (page) render(); });
 start();

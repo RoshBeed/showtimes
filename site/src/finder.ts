@@ -9,7 +9,7 @@ import { DATA, openListings } from './db';
 import { bar, button, facts, h, link } from './dom';
 import { openPanel } from './drawer';
 import { clock, day, fullDate } from './format';
-import { note, noteNow, startHistory } from './history';
+import { goBack, guardBack, note, noteNow, startHistory } from './history';
 import * as q from './queries';
 import { address, app, cursors, db, hidden, narrow, page, scope, setDb, setDrawn, setPage, setView, ticks, toggle, view } from './state';
 import { formats } from './tags';
@@ -115,13 +115,14 @@ export function render() {
   }, { passive: true });
   // On a phone one column shows at a time; these steps name each, with what is chosen in it.
   const steps = h('nav', { class: 'steps' });
+  const back = button('‹', goBack, { class: 'back', 'aria-label': 'Back' });
 
   document.title = 'showtimes';
   app.className = 'finder-page';
   // No header and no footer: the settings open with Esc, or with the button at the right of the
-  // details' heading, at the top right; on a phone, with the button that ends the row of steps at the top.
+  // details' heading, at the top right; on a phone, with the button that ends the row at the top: ‹, the steps, then Settings.
   app.replaceChildren(
-    h('div', { class: 'topbar' }, steps, settings()),
+    h('div', { class: 'topbar' }, back, steps, settings()),
     h('div', { class: 'columns finder' }, ...panes),
   );
 
@@ -291,6 +292,8 @@ export function render() {
       return step;
     }));
     steps.querySelector('.here')?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+    back.disabled = view.focus === 0;
+    guardBack();
     const shown = state.rows[view.row];
     const one = onlyPick(view, 'film');
     const film = shown ? q.film(db, shown.filmId) : one ? q.film(db, one) : null;
