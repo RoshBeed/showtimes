@@ -55,21 +55,46 @@ class RefreshTest(unittest.TestCase):
             return windows(name, moment)[0]
 
         wednesday = datetime(2026, 11, 25, 22, tzinfo=TZ)
-        # ODEON is sometimes not out until Wednesday evening.
-        self.assertEqual(
-            opens("odeon", wednesday), datetime(2026, 11, 25, 21, tzinfo=TZ)
-        )
-        self.assertEqual(
-            opens("odeon", datetime(2026, 11, 25, 20, tzinfo=TZ)),
-            datetime(2026, 11, 18, 21, tzinfo=TZ),
-        )
         self.assertEqual(
             opens("everyman", wednesday), datetime(2026, 11, 25, 6, tzinfo=TZ)
         )
-        for name in ("cineworld", "showcase", "rio"):
+        for name in ("odeon", "cineworld", "showcase", "rio"):
             self.assertEqual(
                 opens(name, wednesday), datetime(2026, 11, 24, 6, tzinfo=TZ)
             )
+
+    def stored_until(self, day):
+        with store.connect(self.path) as db:
+            db.execute("UPDATE screenings SET business_date = ?", (day,))
+
+    def test_odeon_short_of_its_week_is_tried_once_more_on_wednesday_evening(self):
+        tuesday = datetime(2026, 11, 24, 6, 15, tzinfo=TZ)
+        self.assertEqual(self.check(name="odeon", moment=tuesday), "ingested")
+        # The new week is not out yet: it ends on Thursday 3 December.
+        self.stored_until("2026-11-27")
+        client = API()
+        later = datetime(2026, 11, 24, 8, 15, tzinfo=TZ)
+        # Not again before Wednesday evening.
+        self.assertEqual(self.check(client, "odeon", later), "done")
+        self.assertEqual(client.requests, 0)
+        evening = datetime(2026, 11, 25, 21, 15, tzinfo=TZ)
+        self.assertEqual(self.check(name="odeon", moment=evening), "ingested")
+        self.stored_until("2026-11-27")  # still short: no third try
+        client = API()
+        self.assertEqual(
+            self.check(client, "odeon", datetime(2026, 11, 25, 22, 15, tzinfo=TZ)),
+            "done",
+        )
+        self.assertEqual(client.requests, 0)
+
+    def test_odeon_with_its_whole_week_on_tuesday_is_done_for_the_week(self):
+        tuesday = datetime(2026, 11, 24, 6, 15, tzinfo=TZ)
+        self.assertEqual(self.check(name="odeon", moment=tuesday), "ingested")
+        self.stored_until("2026-12-03")
+        client = API()
+        evening = datetime(2026, 11, 25, 21, 15, tzinfo=TZ)
+        self.assertEqual(self.check(client, "odeon", evening), "done")
+        self.assertEqual(client.requests, 0)
 
     def test_failures_preserve_data_and_do_not_turn_green_after_a_recent_success(self):
         self.check()

@@ -4,7 +4,7 @@ import json
 from datetime import datetime
 
 from showtimes_ingest.log import log
-from showtimes_ingest.policy import GRACE, as_moment, windows
+from showtimes_ingest.policy import GRACE, as_moment, fallback, windows
 from showtimes_ingest.store import (
     MAX_FAILURES,
     connect,
@@ -15,7 +15,7 @@ from showtimes_ingest.store import (
     utc,
     write,
 )
-from showtimes_ingest.week import now
+from showtimes_ingest.week import now, release_week
 
 
 def ingest(path, name, collect, client, today=None, after_store=None):
@@ -68,7 +68,8 @@ def ingest(path, name, collect, client, today=None, after_store=None):
 
 
 def settled_reason(path, name, moment=None):
-    boundary, _ = windows(name, as_moment(moment))
+    moment = as_moment(moment)
+    boundary, _ = windows(name, moment)
     # Failure limits belong to this refresh window, not an entire week.
     if failures_since(path, name, utc(boundary)) >= MAX_FAILURES:
         return "paused"
@@ -80,8 +81,22 @@ def settled_reason(path, name, moment=None):
     if latest and latest[0] in ("failed", "running"):
         return None
     if success and datetime.fromisoformat(success) >= boundary:
+        if short_of_week(path, name, boundary, datetime.fromisoformat(success), moment):
+            return None
         return "done"
     return None
+
+
+def short_of_week(path, name, boundary, success, moment):
+    """Whether a run that stopped short of the week's Thursday is due once more:
+    only for a chain with a fallback, once it opens, and only for a run before it."""
+    retry = fallback(name, boundary)
+    if retry is None or moment < retry or success >= retry:
+        return False
+    _, thursday = release_week(boundary.date())
+    with connect(path) as db:
+        (last,) = db.execute("SELECT MAX(business_date) FROM screenings").fetchone()
+    return last is None or last < thursday.isoformat()
 
 
 def check(path, name, collect, client, moment=None, after_store=None):

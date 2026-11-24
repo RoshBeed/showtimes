@@ -10,7 +10,7 @@ on:
       timezone: Europe/London
     - cron: "15 6-8 * * 3" # Wednesday 06:00: Everyman
       timezone: Europe/London
-    - cron: "15 21-23 * * 3" # Wednesday 21:00: ODEON
+    - cron: "15 21-23 * * 3" # Wednesday 21:00: ODEON again, only if its Tuesday run fell short of the week
       timezone: Europe/London
   workflow_dispatch:
     inputs:
