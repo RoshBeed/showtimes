@@ -95,7 +95,8 @@
   least needed first. There is no header or footer: Esc (with nothing half-typed) or the button
   at the right of the details' heading (top right of the page) opens the settings, a window floating over the columns,
   which also says how fresh the listings are and which version is running. Nothing is stored in the browser. The default view is Cinema then
-  Film, over every cinema. On a phone one column shows at a time.
+  Film, over every cinema. On a phone one column shows at a time; ‹ at the top left, or the
+  phone's own back, goes back a column (one spare history entry, `guardBack` in `history.ts`).
 - The keys are vim's and nothing else: normal mode, ex commands (`:set`, `:sort`, `:vs`, `:q`,
   `:filter`) and `/` `?` searches on the command line. `NORMAL`, `EX` and `DRAWER` in `cmdline.ts`
   are the `:help` list; keep it in step with the keys. The settings drawer is a buffer too.
