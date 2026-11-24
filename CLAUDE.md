@@ -91,7 +91,10 @@
   a range, Ctrl/Cmd-click one more, or the keys of ranger and lf: Space marks the line and moves
   down, `V` marks a range, and a column with marks has a free cursor (`cursors` in `state.ts`), so
   j and k move without choosing until Space on All clears them. A column's heading or empty space,
-  clicked, goes to it and changes nothing),
+  clicked, goes to it and changes nothing. By mouse, a column of choices is moved by dragging its
+  heading onto another, closed with the × on its heading, and added with the + on the showtimes'
+  heading; these, `:vs`, `:q` and `<<` `>>` share `addColumn`, `closeColumn` and `moveColumn`
+  in `finder.ts`),
   so a bookmark is a saved view; the default view has no hash at all. `fields=` picks what each
   showtime row shows (`FIELDS` in `choices.ts`), and rows too wide for their column leave out the
   least needed first. There is no header or footer: Esc (with nothing half-typed) or the button

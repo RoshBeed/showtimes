@@ -2,7 +2,7 @@ import { DEFAULT_FIELDS, FIELDS, type Order } from './choices';
 import { KINDS, ordersOf } from './columns';
 import { button, h } from './dom';
 import { drawer, fillPanel, openPanel, panel, setLondon, startOver } from './drawer';
-import { addToCalendar, rebuild } from './finder';
+import { addColumn, addToCalendar, closeColumn, rebuild } from './finder';
 import { noteNow, undoOrRedo } from './history';
 import { goTo, inHand, search } from './keys';
 import * as q from './queries';
@@ -290,17 +290,11 @@ function run(text: string) {
       if (!argument) return say('E471: Argument required: which column? Tab lists them', true);
       if (!column) return say(`No such column: ${argument}`, true);
       if (view.columns.includes(column)) { view.focus = view.columns.indexOf(column); return at.mark(); }
-      view.columns.splice(Math.min(view.focus + 1, view.columns.length), 0, column);
-      view.focus = view.columns.indexOf(column);
-      return rebuild();
+      return addColumn(column, view.focus + 1);
     }
     case 'quit': case 'close':
       if (!facet) return say('The showtimes cannot be closed', true);
-      view.columns.splice(view.focus, 1);
-      delete view.picks[facet];
-      delete view.orders[facet];
-      view.focus = Math.min(view.focus, view.columns.length);
-      return rebuild();
+      return closeColumn(view.focus);
     case 'only':
       if (!facet) return say('The showtimes cannot be closed', true);
       for (const other of view.columns) if (other !== facet) { delete view.picks[other]; delete view.orders[other]; }

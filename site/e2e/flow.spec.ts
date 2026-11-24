@@ -272,6 +272,43 @@ test(':vs adds a column, << and >> move it, :q and :only close them', async ({ p
   await expect(titles(page)).toHaveText(['Screen', 'Showtimes', /./]);
 });
 
+test('by mouse: × closes a column, + adds one, and a heading dragged onto another moves it', async ({ page }) => {
+  await visit(page, '/#cols=cinema,film');
+  await choices(page, 'Film').filter({ hasText: 'Dune' }).click();
+  await expect(page).toHaveURL(/film=/);
+  // × shows on a heading under the mouse, and closes that column with what was chosen in it.
+  await column(page, 'Film').hover();
+  await page.getByRole('button', { name: 'Close the Film column' }).click();
+  await expect(titles(page)).toHaveText(['Cinema', 'Showtimes', /./]);
+  await expect(page).not.toHaveURL(/film=/);
+  await page.keyboard.press('u'); // undo brings it back, choice and all
+  await expect(titles(page)).toHaveText(['Cinema', 'Film', 'Showtimes', /./]);
+  await expect(page).toHaveURL(/film=/);
+  // + lists the columns not shown; the one chosen goes just before the showtimes.
+  await page.getByRole('button', { name: 'Add a column' }).click();
+  const menu = page.getByRole('menu', { name: 'Add a column' });
+  await expect(menu.getByRole('menuitem', { name: 'Film' })).toHaveCount(0);
+  await menu.getByRole('menuitem', { name: 'Day' }).click();
+  await expect(menu).toBeHidden();
+  await expect(titles(page)).toHaveText(['Cinema', 'Film', 'Day', 'Showtimes', /./]);
+  await expect(column(page, 'Day')).toHaveClass(/focused/);
+  // The menu's keys are its own: j moves, Esc closes it and opens nothing else.
+  await page.getByRole('button', { name: 'Add a column' }).click();
+  await page.keyboard.press('j');
+  await expect(menu.getByRole('menuitem').nth(1)).toBeFocused();
+  await page.keyboard.press('Escape');
+  await expect(menu).toBeHidden();
+  await expect(page.getByRole('dialog', { name: 'Settings' })).toBeHidden();
+  // Day's heading dropped on the left half of Cinema's column goes before it.
+  const cinema = column(page, 'Cinema');
+  const box = (await cinema.boundingBox())!;
+  await column(page, 'Day').locator('.bar h2').dragTo(cinema, { targetPosition: { x: 10, y: box.height / 2 } });
+  await expect(titles(page)).toHaveText(['Day', 'Cinema', 'Film', 'Showtimes', /./]);
+  await expect(page).toHaveURL(/cols=day,cinema,film/);
+  await page.reload();
+  await expect(titles(page)).toHaveText(['Day', 'Cinema', 'Film', 'Showtimes', /./]);
+});
+
 test('Tab completes commands as vim\'s wildmenu does', async ({ page }) => {
   await visit(page, '/#col=3');
   const command = page.locator('.cmdline input');

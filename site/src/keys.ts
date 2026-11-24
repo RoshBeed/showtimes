@@ -2,7 +2,7 @@ import { onlyPick, PAGE, pick, picked } from './choices';
 import { held, help, openCommand, say, show } from './cmdline';
 import { KINDS } from './columns';
 import { openPanel, panel, where } from './drawer';
-import { hideFilm, lastColumn, rebuild } from './finder';
+import { hideFilm, lastColumn, moveColumn } from './finder';
 import { noteNow, restore, undoOrRedo } from './history';
 import * as q from './queries';
 import { app, cursors, db, londonOnly, page, ticks, view } from './state';
@@ -154,14 +154,7 @@ document.addEventListener('keydown', (event) => {
     });
   };
   const column = (to: number) => { view.focus = Math.max(0, Math.min(lastColumn(), to)); at.mark(); };
-  const shift = (by: number) => {
-    const to = Math.max(0, Math.min(view.columns.length - 1, view.focus + by));
-    if (!facet || to === view.focus) return;
-    view.columns.splice(view.focus, 1);
-    view.columns.splice(to, 0, facet);
-    view.focus = to;
-    rebuild();
-  };
+  const shift = (by: number) => { if (facet) moveColumn(view.focus, view.focus + by); };
   const scrollTo = (block: ScrollLogicalPosition) => pane?.querySelector('.selected')?.scrollIntoView({ block });
 
   // The second key of a pair.
