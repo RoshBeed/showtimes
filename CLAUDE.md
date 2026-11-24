@@ -63,7 +63,8 @@
 - Collection is weekly, not daily (the user's decision on 2026-11-20): each chain is due once per
   window in `policy.py` (Everyman Wednesday 06:00, the rest Tuesday 06:00, London time; ODEON,
   which some weeks publishes only by Wednesday evening, is tried once more at Wednesday 21:00 when
-  its Tuesday run stopped short of the week's Thursday: `FALLBACK`), and Listings' crons run at each window and twice more an hour later (a chain
+  its Tuesday run stopped short of the week's Thursday: `FALLBACK`), and Listings' crons (in UTC: GitHub's scheduler did not fire crons given a time zone) run at
+  each window and twice more an hour later (a chain
   already stored is left out without contacting it). Keep the crons and `policy.py` in step.
   Publish also runs alone on a push to `main` or by hand, building the release's files as they are.
 - Keep every chain's traffic minimal: one ingest per published week, no retry loops, and never
