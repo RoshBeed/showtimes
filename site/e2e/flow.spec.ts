@@ -299,14 +299,34 @@ test('by mouse: × closes a column, + adds one, and a heading dragged onto anoth
   await page.keyboard.press('Escape');
   await expect(menu).toBeHidden();
   await expect(page.getByRole('dialog', { name: 'Settings' })).toBeHidden();
-  // Day's heading dropped on the left half of Cinema's column goes before it.
-  const cinema = column(page, 'Cinema');
-  const box = (await cinema.boundingBox())!;
-  await column(page, 'Day').locator('.bar h2').dragTo(cinema, { targetPosition: { x: 10, y: box.height / 2 } });
+  // A heading is dragged by the pointer itself (as Safari needs): Day dropped on the left half of
+  // Cinema's column goes before it, and the drop is not also a click.
+  const drag = async (title: string, onto: string, half: 'left' | 'right') => {
+    const from = (await column(page, title).locator('.bar h2').boundingBox())!;
+    const to = (await column(page, onto).boundingBox())!;
+    await page.mouse.move(from.x + 10, from.y + from.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(to.x + (half === 'left' ? 12 : to.width - 12), to.y + 200, { steps: 8 });
+    await expect(column(page, onto)).toHaveClass(half === 'left' ? /drop-before/ : /drop-after/);
+    await page.mouse.up();
+  };
+  await drag('Day', 'Cinema', 'left');
   await expect(titles(page)).toHaveText(['Day', 'Cinema', 'Film', 'Showtimes', /./]);
   await expect(page).toHaveURL(/cols=day,cinema,film/);
+  await expect(page.locator('.column.drop-before, .column.drop-after, .column.dragging')).toHaveCount(0);
+  // Onto the right half of the last column of choices: to the end.
+  await drag('Day', 'Film', 'right');
+  await expect(titles(page)).toHaveText(['Cinema', 'Film', 'Day', 'Showtimes', /./]);
+  // A press that hardly moves is a click: it goes to the column and moves nothing.
+  const heading = (await column(page, 'Cinema').locator('.bar h2').boundingBox())!;
+  await page.mouse.move(heading.x + 10, heading.y + heading.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(heading.x + 13, heading.y + heading.height / 2);
+  await page.mouse.up();
+  await expect(column(page, 'Cinema')).toHaveClass(/focused/);
+  await expect(titles(page)).toHaveText(['Cinema', 'Film', 'Day', 'Showtimes', /./]);
   await page.reload();
-  await expect(titles(page)).toHaveText(['Day', 'Cinema', 'Film', 'Showtimes', /./]);
+  await expect(titles(page)).toHaveText(['Cinema', 'Film', 'Day', 'Showtimes', /./]);
 });
 
 test('Tab completes commands as vim\'s wildmenu does', async ({ page }) => {

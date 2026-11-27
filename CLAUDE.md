@@ -92,7 +92,8 @@
   down, `V` marks a range, and a column with marks has a free cursor (`cursors` in `state.ts`), so
   j and k move without choosing until Space on All clears them. A column's heading or empty space,
   clicked, goes to it and changes nothing. By mouse, a column of choices is moved by dragging its
-  heading onto another, closed with the × on its heading, and added with the + on the showtimes'
+  heading onto another (followed with pointer events: Safari will not start the browser's own drag
+  and drop on a heading; CI runs that test in WebKit too), closed with the × on its heading, and added with the + on the showtimes'
   heading; these, `:vs`, `:q` and `<<` `>>` share `addColumn`, `closeColumn` and `moveColumn`
   in `finder.ts`),
   so a bookmark is a saved view; the default view has no hash at all. `fields=` picks what each
@@ -167,7 +168,8 @@
 - The README is for visitors only: what the site does and how to use it, with one listings badge
   at the top. No development detail (that belongs here) and no keys (`:help` has them). Keep it
   short. The badge is a shields.io endpoint, `data/badge.json` on the live site, written by the
-  export from the listings themselves (`site/src/badge.ts`): green with when the chains were updated, or the
+  export from the listings themselves (`site/src/badge.ts`): green with the Thursday ending the week every
+  chain was fetched for (`15 chains, to Thu 3 Dec`), or the
   chains whose latest run failed and those not updated for over nine days. Workflow badges would show runs, not what the site shows.
 - Adding a chain: (1) a package `ingest/src/showtimes_ingest/chains/<chain>/` writing the
   `store.py` schema and offering what `chains/__init__.py` lists (`NAME`, `check`, `ingest`,

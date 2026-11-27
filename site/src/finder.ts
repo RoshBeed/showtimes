@@ -79,38 +79,77 @@ export function moveColumn(from: number, to: number) {
 }
 
 /** A column of choices moves by dragging its heading onto another such column: the half the
- *  pointer is over says which side it goes. The showtimes and the details stay where they are. */
+ *  pointer is over says which side it goes. The showtimes and the details stay where they are.
+ *  Followed by pointer events, not the browser's drag and drop, which Safari will not start on a
+ *  heading. A press that moves less than a few pixels is a click, which goes to the column. */
 function draggable(panes: HTMLElement[], index: number, count: number) {
   const pane = panes[index];
   const heading = pane.querySelector('.bar h2') as HTMLElement;
-  heading.draggable = true;
-  heading.addEventListener('dragstart', (event) => {
-    event.dataTransfer?.setData('application/x-column', String(index));
-    if (event.dataTransfer) event.dataTransfer.effectAllowed = 'move';
-    pane.classList.add('dragging');
-  });
-  heading.addEventListener('dragend', () => {
-    for (const each of panes) each.classList.remove('dragging', 'drop-before', 'drop-after');
-  });
-  const side = (event: DragEvent) => {
-    const box = pane.getBoundingClientRect();
-    return event.clientX < box.left + box.width / 2 ? 'before' : 'after';
+  const choices = panes.slice(0, count);
+  let start: { x: number; y: number; id: number } | undefined;
+  let dragging = false;
+  let target: { at: number; before: boolean } | undefined;
+  /** Where the pointer would drop the column, marked on the column it is over. */
+  const aim = (x: number) => {
+    for (const each of choices) each.classList.remove('drop-before', 'drop-after');
+    const at = choices.findIndex((each) => { const box = each.getBoundingClientRect(); return x >= box.left && x < box.right; });
+    if (at < 0) { target = undefined; return; }
+    const box = choices[at].getBoundingClientRect();
+    target = { at, before: x < box.left + box.width / 2 };
+    choices[at].classList.add(target.before ? 'drop-before' : 'drop-after');
   };
-  pane.addEventListener('dragover', (event) => {
-    if (!event.dataTransfer?.types.includes('application/x-column')) return;
+  const move = (event: PointerEvent) => {
+    if (!start || event.pointerId !== start.id) return;
+    if (!dragging) {
+      if (Math.hypot(event.clientX - start.x, event.clientY - start.y) < 6) return;
+      dragging = true;
+      pane.classList.add('dragging');
+      document.body.classList.add('dragging-columns');
+      window.getSelection()?.removeAllRanges();
+    }
     event.preventDefault();
-    event.dataTransfer.dropEffect = 'move';
-    const before = side(event) === 'before';
-    pane.classList.toggle('drop-before', before);
-    pane.classList.toggle('drop-after', !before);
-  });
-  pane.addEventListener('dragleave', () => pane.classList.remove('drop-before', 'drop-after'));
-  pane.addEventListener('drop', (event) => {
-    const from = Number(event.dataTransfer?.getData('application/x-column'));
-    if (!Number.isInteger(from) || from < 0 || from >= count) return;
+    aim(event.clientX);
+  };
+  const up = (event: PointerEvent) => {
+    if (!start || event.pointerId !== start.id) return;
+    const drop = dragging ? target : undefined;
+    const dragged = dragging;
+    finish();
+    if (!dragged) return; // a click: the column's own click handler goes to it
+    // The click that ends a drag is not a click on a column.
+    // A click follows only when the press and release fell on one element, so it is caught for
+    // this turn of the event loop alone, never left to swallow a later click.
+    window.addEventListener('click', swallow, true);
+    setTimeout(() => window.removeEventListener('click', swallow, true), 0);
+    if (!drop) return;
+    const place = drop.before ? drop.at : drop.at + 1; // among the columns as they are now
+    moveColumn(index, place > index ? place - 1 : place);
+  };
+  const swallow = (click: MouseEvent) => click.stopPropagation();
+  const key = (event: KeyboardEvent) => {
+    if (event.key !== 'Escape' || !dragging) return;
+    event.stopPropagation();
     event.preventDefault();
-    const place = side(event) === 'before' ? index : index + 1; // among the columns as they are now
-    moveColumn(from, place > from ? place - 1 : place);
+    finish();
+  };
+  function finish() {
+    for (const each of choices) each.classList.remove('dragging', 'drop-before', 'drop-after');
+    document.body.classList.remove('dragging-columns');
+    window.removeEventListener('pointermove', move);
+    window.removeEventListener('pointerup', up);
+    window.removeEventListener('pointercancel', finish);
+    window.removeEventListener('keydown', key, true);
+    start = undefined;
+    target = undefined;
+    dragging = false;
+  }
+  heading.addEventListener('pointerdown', (event) => {
+    if (event.button !== 0 || narrow.matches) return;
+    start = { x: event.clientX, y: event.clientY, id: event.pointerId };
+    window.addEventListener('pointermove', move);
+    window.addEventListener('pointerup', up);
+    window.addEventListener('pointercancel', finish);
+    window.addEventListener('keydown', key, true);
   });
 }
 
