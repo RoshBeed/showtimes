@@ -60,7 +60,8 @@ button:disabled { color: var(--dim); cursor: default; }
 .bar .close:hover, .bar .add:hover, .bar .close:focus-visible, .bar .add:focus-visible { color: var(--accent); }
 .bar .close { visibility: hidden; }
 .column:hover .bar .close, .column.focused .bar .close { visibility: visible; }
-.column:not(.showtimes):not(.details) .bar h2[draggable="true"] { cursor: grab; }
+.column:not(.showtimes):not(.details) .bar h2 { cursor: grab; touch-action: none; user-select: none; -webkit-user-select: none; }
+body.dragging-columns, body.dragging-columns * { cursor: grabbing !important; user-select: none; -webkit-user-select: none; }
 .column.dragging { opacity: 0.5; }
 .column.drop-before { box-shadow: inset 3px 0 var(--accent); }
 .column.drop-after { box-shadow: inset -3px 0 var(--accent); }
@@ -165,7 +166,7 @@ li.heads button:hover, li.heads button.on { color: var(--accent); }
   .bar .open-panel { display: none; }
   /* No hover on a phone: × shows on every column, and headings are not dragged. */
   .bar .close { visibility: visible; }
-  .column:not(.showtimes):not(.details) .bar h2[draggable="true"] { cursor: default; }
+  .column:not(.showtimes):not(.details) .bar h2 { cursor: default; touch-action: auto; }
   .topbar { display: flex; gap: 6px; align-items: center; border-bottom: 1px solid var(--line); }
   .steps { display: flex; flex: 1; min-width: 0; gap: 6px; overflow-x: auto; padding: 8px 0; }
   .topbar .open-panel { flex: none; padding: 6px 10px; color: var(--accent); border-color: var(--accent); }
